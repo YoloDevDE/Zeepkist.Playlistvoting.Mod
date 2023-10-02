@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net472</TargetFramework>
+        <AssemblyName>FSMTest</AssemblyName>
+        <Description>My Zeepkist plugin</Description>
+        <Version>1.0.0</Version>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>FSMTest</RootNamespace>
+        <RestoreAdditionalProjectSources>
+            https://api.nuget.org/v3/index.json;
+            https://nuget.bepinex.dev/v3/index.json;
+            https://nuget.samboy.dev/v3/index.json
+        </RestoreAdditionalProjectSources>
+        <Authors>Hi Im Yolo</Authors>
+    </PropertyGroup>
+
+    <!-- NuGet-Paketabhängigkeiten -->
+    <ItemGroup>
+        <!-- BepInEx Abhängigkeiten -->
+        <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
+        <PackageReference Include="BepInEx.Core" Version="5.*"/>
+
+        <!-- Weitere Plugins und Bibliotheken -->
+        <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
+        <PackageReference Include="UnityEngine.Modules" Version="2021.3.10" IncludeAssets="compile"/>
+        <PackageReference Include="Zeepkist.GameLibs" Version="*-*"/>
+        <PackageReference Include="ZeepSDK" Version="1.*"/>
+    </ItemGroup>
+
+    <!-- Bedingte Abhängigkeiten -->
+    <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <!-- Post-Build-Skripte -->
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+        <!-- Lösche das Plugin-Verzeichnis, falls es existiert -->
+        <RemoveDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\$(ProjectName)"/>
+
+        <!-- Erstelle das Plugin-Verzeichnis -->
+        <MakeDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\$(ProjectName)"/>
+
+        <!-- DLL in das Plugin-Verzeichnis kopieren -->
+        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
+    </Target>
+
+
+</Project>
