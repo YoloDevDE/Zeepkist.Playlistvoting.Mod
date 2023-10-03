@@ -1,18 +1,31 @@
 ﻿using System;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using BepInEx;
 using HarmonyLib;
+using UnityEngine.SceneManagement;
+using ZeepkistClient;
 using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
+using ZeepSDK.Messaging;
+using ZeepSDK.Multiplayer;
+using ZeepSDK.Racing;
+using System.Timers;
 
-namespace FSMTest;
+namespace PlaylistVoting;
 
 [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
 [BepInDependency("ZeepSDK")]
 public class Plugin : BaseUnityPlugin
 {
-    private static readonly HttpClient client = new();
     private Harmony harmony;
+    public State state;
+
+    private void OnDestroy()
+    {
+        harmony?.UnpatchSelf();
+        harmony = null;
+    }
 
     private void Awake()
     {
@@ -21,29 +34,21 @@ public class Plugin : BaseUnityPlugin
         ChatCommandApi.RegisterRemoteChatCommand<VoteYes>();
         ChatCommandApi.RegisterRemoteChatCommand<VoteNo>();
         ChatCommandApi.RegisterLocalChatCommand<VoteReset>();
-        VoteYes.OnHandle += HandleRequestAsyncYes;
-        VoteNo.OnHandle += HandleRequestAsyncNo;
+        ChatCommandApi.RegisterLocalChatCommand<VoteStart>();
+        ChatCommandApi.RegisterLocalChatCommand<VoteStop>();
+
         VoteReset.OnHandle += HandleRequestAsyncReset;
+
+        this.state = new StateInactive(this);
+        this.state.Enter();
 
         // Plugin startup logic
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
     }
 
-    private void OnDestroy()
-    {
-        harmony?.UnpatchSelf();
-        harmony = null;
-    }
-
     public static async void HandleRequestAsyncReset()
     {
-        var url =
-            "https://yololurk.herokuapp.com/api/ronan/reset?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991&twitchUser=R0nanC";
-        HandleRequestAsync(url);
-    }
-
-    public static async void HandleRequestAsync(string url)
-    {
+        var url = "https://yololurk.herokuapp.com/api/ronan/reset?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
         try
         {
             using (var httpClient = new HttpClient())
@@ -67,20 +72,11 @@ public class Plugin : BaseUnityPlugin
         }
     }
 
-    public static async void HandleRequestAsyncNo(ulong playerId)
+    public void SwitchState(State state)
     {
-        var url =
-            $"https://yololurk.herokuapp.com/api/ronan/no?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991&twitchUser={playerId}";
-
-        HandleRequestAsync(url);
-    }
-
-    public static async void HandleRequestAsyncYes(ulong playerId)
-    {
-        var url =
-            $"https://yololurk.herokuapp.com/api/ronan/yes?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991&twitchUser={playerId}";
-
-        HandleRequestAsync(url);
+        this.state.Exit();
+        this.state = state;
+        this.state.Enter();
     }
 }
 
@@ -132,6 +128,39 @@ public class VoteReset : ILocalChatCommand
         OnHandle?.Invoke();
     }
 
+    // Event-Definition
+    public static event Action OnHandle;
+}
+
+public class VoteStart : ILocalChatCommand
+{
+    public string Prefix => "/";
+    public string Command => "vote start";
+
+    public string Description =>
+        "Starts the Count!!";
+
+    public void Handle(string arguments)
+    {
+        OnHandle?.Invoke();
+    }
+
+    // Event-Definition
+    public static event Action OnHandle;
+}
+
+public class VoteStop : ILocalChatCommand
+{
+    public string Prefix => "/";
+    public string Command => "vote stop";
+
+    public string Description =>
+        "Stops the Count!!";
+
+    public void Handle(string arguments)
+    {
+        OnHandle?.Invoke();
+    }
 
     // Event-Definition
     public static event Action OnHandle;

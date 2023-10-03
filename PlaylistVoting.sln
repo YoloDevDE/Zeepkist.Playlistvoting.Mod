@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FSMTest", "FSMTest\FSMTest.csproj", "{202337A8-DCC1-4E71-8317-0BE39449389D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PlaylistVoting", "PlaylistVoting\PlaylistVoting.csproj", "{202337A8-DCC1-4E71-8317-0BE39449389D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
