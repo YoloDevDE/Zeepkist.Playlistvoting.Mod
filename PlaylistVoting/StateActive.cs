@@ -48,8 +48,8 @@ public class StateActive : State
         RacingApi.LevelLoaded -= OnPlayerSpawned;
         VoteStop.OnHandle -= OnVoteStopOnOnHandle;
         VoteStart.OnHandle -= OnVoteStartOnOnHandle;
-        ChatApi.SendMessage("/servermessage remove");
         StopTimer();
+        ChatApi.SendMessage("/servermessage remove");
     }
 
     private void OnPlayerSpawned()

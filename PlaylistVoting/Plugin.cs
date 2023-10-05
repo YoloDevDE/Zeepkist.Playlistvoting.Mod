@@ -46,7 +46,7 @@ public class Plugin : BaseUnityPlugin
             "Settings",
             "MessageFormat",
             "Current Total -> %y/%n (y/n) %e",
-            "Format of the voting message.");
+            "Customize the format of the voting results message with specific placeholders:\n\n%y: Number of yes votes\n%n: Number of no votes\n%e: Display emote\n%l: Level name\n%a: Author's name");
 
         // Updated color options
         var colors = new AcceptableValueList<string>("Red", "Orange", "Yellow", "Blue", "Green", "Pink", "Purple",
