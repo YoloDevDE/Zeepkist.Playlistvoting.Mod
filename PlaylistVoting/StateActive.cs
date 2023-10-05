@@ -2,6 +2,9 @@
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Timers;
+using BepInEx;
+using BepInEx.Configuration;
+using UnityEngine.Purchasing;
 using ZeepkistClient;
 using ZeepSDK.Chat;
 using ZeepSDK.Messaging;
@@ -12,6 +15,10 @@ namespace PlaylistVoting;
 public class StateActive : State
 {
     private Timer _updateTimer;
+
+    public StateActive(Plugin plugin) : base(plugin)
+    {
+    }
 
     public override void Enter()
     {
@@ -41,6 +48,7 @@ public class StateActive : State
         RacingApi.LevelLoaded -= OnPlayerSpawned;
         VoteStop.OnHandle -= OnVoteStopOnOnHandle;
         VoteStart.OnHandle -= OnVoteStartOnOnHandle;
+        ChatApi.SendMessage("/servermessage remove");
         StopTimer();
     }
 
@@ -61,12 +69,12 @@ public class StateActive : State
 
     public async void HandleRequestAsync(string url)
     {
-        
         if (ZeepkistNetwork.CurrentLobby.GameState != 0)
         {
             StopTimer();
             return;
         }
+
         try
         {
             using (var httpClient = new HttpClient())
@@ -76,13 +84,42 @@ public class StateActive : State
                 {
                     var content = await response.Content.ReadAsStringAsync();
                     var match = Regex.Match(content, @"Current Total -> (\d+)/(\d+) \(y/n\)");
+
                     if (match.Success)
                     {
                         int yesVotes = int.Parse(match.Groups[1].Value);
                         int noVotes = int.Parse(match.Groups[2].Value);
-                        string color = yesVotes > noVotes ? "green" : "red";
 
-                        ChatApi.SendMessage($"/servermessage {color} 0 Current Total -> {yesVotes}/{noVotes} (y/n)");
+                        string color, emote, level, author;
+                        level = PlayerManager.Instance.currentMaster.GlobalLevel.Name;
+                        author = PlayerManager.Instance.currentMaster.GlobalLevel.Author;
+                        if (yesVotes > noVotes)
+                        {
+                            color = Plugin.Instance.WinColor;
+                            emote = Plugin.Instance.WinEmote;
+                        }
+                        else if (yesVotes < noVotes)
+                        {
+                            color = Plugin.Instance.LoseColor;
+                            emote = Plugin.Instance.LoseEmote;
+                        }
+                        else
+                        {
+                            color = Plugin.Instance.TieColor;
+                            emote = Plugin.Instance.TieEmote;
+                        }
+                        
+                        string message = Plugin.Instance.MessageFormat
+                            .Replace("%y", yesVotes.ToString())
+                            .Replace("%n", noVotes.ToString())
+                            .Replace("%e", emote)
+                            .Replace("%l", level)
+                            .Replace("%a", author);
+                        if (message.IsNullOrWhiteSpace())
+                            message = "No Message set. Please do so.";
+                        color = color.ToLower();
+
+                        ChatApi.SendMessage($"/servermessage {color} 0 {message}");
                     }
                     else
                     {
@@ -96,7 +133,6 @@ public class StateActive : State
             // Handle exception
             ChatApi.SendMessage($"Error: {ex.Message}");
         }
-
     }
 
     public void StopTimer()
@@ -124,11 +160,7 @@ public class StateActive : State
     public void HandleRequestAsyncGet(ulong playerId)
     {
         var url =
-            $"https://yololurk.herokuapp.com/api/ronan/get?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
+            "https://yololurk.herokuapp.com/api/ronan/get?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
         HandleRequestAsync(url);
-    }
-
-    public StateActive(Plugin plugin) : base(plugin)
-    {
     }
 }

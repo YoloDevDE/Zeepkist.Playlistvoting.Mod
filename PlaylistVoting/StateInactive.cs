@@ -1,16 +1,18 @@
 ﻿using ZeepSDK.Chat;
 using ZeepSDK.Messaging;
-using ZeepSDK.Racing;
 
 namespace PlaylistVoting;
 
 public class StateInactive : State
 {
+    public StateInactive(Plugin plugin) : base(plugin)
+    {
+    }
+
     public override void Enter()
     {
         VoteStop.OnHandle += OnVoteStopOnOnHandle;
         VoteStart.OnHandle += OnVoteStartOnOnHandle;
-        ChatApi.SendMessage("/servermessage remove");
     }
 
     private void OnVoteStartOnOnHandle()
@@ -28,9 +30,5 @@ public class StateInactive : State
     {
         VoteStop.OnHandle -= OnVoteStopOnOnHandle;
         VoteStart.OnHandle -= OnVoteStartOnOnHandle;
-    }
-
-    public StateInactive(Plugin plugin) : base(plugin)
-    {
     }
 }

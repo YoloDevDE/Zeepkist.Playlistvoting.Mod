@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using BepInEx;
+using BepInEx.Configuration;
 using HarmonyLib;
-using UnityEngine.SceneManagement;
 using ZeepkistClient;
+using ZeepkistNetworking;
 using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
-using ZeepSDK.Messaging;
-using ZeepSDK.Multiplayer;
-using ZeepSDK.Racing;
-using System.Timers;
 
 namespace PlaylistVoting;
 
@@ -18,32 +14,107 @@ namespace PlaylistVoting;
 [BepInDependency("ZeepSDK")]
 public class Plugin : BaseUnityPlugin
 {
-    private Harmony harmony;
-    public State state;
+    private Harmony _harmony;
+    private State _state;
+    public static Plugin Instance { get; private set; }
 
-    private void OnDestroy()
-    {
-        harmony?.UnpatchSelf();
-        harmony = null;
-    }
+    private ConfigEntry<string> messageFormat;
+    private ConfigEntry<string> winColor;
+    private ConfigEntry<string> tieColor;
+    private ConfigEntry<string> loseColor;
+    private ConfigEntry<string> winEmote;
+    private ConfigEntry<string> tieEmote;
+    private ConfigEntry<string> loseEmote;
+
+    public string MessageFormat => messageFormat.Value;
+    public string WinColor => winColor.Value;
+    public string TieColor => tieColor.Value;
+    public string LoseColor => loseColor.Value;
+    public string WinEmote => winEmote.Value;
+    public string TieEmote => tieEmote.Value;
+    public string LoseEmote => loseEmote.Value;
 
     private void Awake()
+        // [Info   : Unity Log] GetChatMessage: : <i>Command failed. Invalid Color. Accepted colors: red, orange, yellow, blue, green, pink, purple, black, white</i>
     {
-        harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
-        harmony.PatchAll();
+        _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
+        _harmony.PatchAll();
+        
+
+        Instance = this;
+        messageFormat = Config.Bind(
+            "Settings",
+            "MessageFormat",
+            "Current Total -> %y/%n (y/n) %e",
+            "Format of the voting message.");
+
+        // Updated color options
+        var colors = new AcceptableValueList<string>("Red", "Orange", "Yellow", "Blue", "Green", "Pink", "Purple",
+            "Black", "White");
+
+        winColor = Config.Bind<string>(
+            "Colors",
+            "Win",
+            colors.AcceptableValues[4],
+            new ConfigDescription("Color when yes votes are greater than no votes.", colors)
+        );
+
+        tieColor = Config.Bind<string>(
+            "Colors",
+            "Tie",
+            colors.AcceptableValues[2],
+            new ConfigDescription("Color when yes votes are equal to no votes.", colors)
+        );
+
+        loseColor = Config.Bind<string>(
+            "Colors",
+            "Lose",
+            colors.AcceptableValues[0],
+            new ConfigDescription("Color when no votes are greater than yes votes.", colors)
+        );
+
+        // Updated emote options
+        var emotes = new AcceptableValueList<string>(ZeepkistEmojis.GetEmojis().ToArray());
+
+        winEmote = Config.Bind<string>(
+            "Emotes (%e)",
+            "Win",
+            ":yannicsmile:",
+            new ConfigDescription("Emote when yes votes are greater than no votes.", emotes)
+        );
+
+        tieEmote = Config.Bind<string>(
+            "Emotes (%e)",
+            "Tie",
+            ":yannics:",
+            new ConfigDescription("Emote when yes votes are equal to no votes.", emotes)
+        );
+        loseEmote = Config.Bind<string>(
+            "Emotes (%e)", 
+            "Lose", 
+            ":yannicmegas:", 
+            new ConfigDescription("Emote when no votes are greater than yes votes.", emotes)
+        );
+
+
         ChatCommandApi.RegisterRemoteChatCommand<VoteYes>();
         ChatCommandApi.RegisterRemoteChatCommand<VoteNo>();
         ChatCommandApi.RegisterLocalChatCommand<VoteReset>();
         ChatCommandApi.RegisterLocalChatCommand<VoteStart>();
         ChatCommandApi.RegisterLocalChatCommand<VoteStop>();
-
         VoteReset.OnHandle += HandleRequestAsyncReset;
 
-        this.state = new StateInactive(this);
-        this.state.Enter();
+        _state = new StateInactive(this);
+        _state.Enter();
 
         // Plugin startup logic
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
+    }
+
+    private void OnDestroy()
+    {
+        _harmony?.UnpatchSelf();
+        _harmony = null;
     }
 
     public static async void HandleRequestAsyncReset()
@@ -74,9 +145,9 @@ public class Plugin : BaseUnityPlugin
 
     public void SwitchState(State state)
     {
-        this.state.Exit();
-        this.state = state;
-        this.state.Enter();
+        _state.Exit();
+        _state = state;
+        _state.Enter();
     }
 }
 
