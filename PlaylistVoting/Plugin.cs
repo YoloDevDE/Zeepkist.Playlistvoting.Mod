@@ -1,12 +1,17 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using BepInEx;
 using BepInEx.Configuration;
+using BepInEx.Logging;
 using HarmonyLib;
 using ZeepkistClient;
 using ZeepkistNetworking;
 using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
+using ZeepSDK.Leaderboard;
+using ZeepSDK.Multiplayer;
+using ZeepSDK.Racing;
 
 namespace PlaylistVoting;
 
@@ -26,6 +31,7 @@ public class Plugin : BaseUnityPlugin
     private ConfigEntry<string> tieEmote;
     private ConfigEntry<string> loseEmote;
 
+    public string level, author, uid;
     public string MessageFormat => messageFormat.Value;
     public string WinColor => winColor.Value;
     public string TieColor => tieColor.Value;
@@ -39,7 +45,7 @@ public class Plugin : BaseUnityPlugin
     {
         _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
         _harmony.PatchAll();
-        
+
 
         Instance = this;
         messageFormat = Config.Bind(
@@ -90,9 +96,9 @@ public class Plugin : BaseUnityPlugin
             new ConfigDescription("Emote when yes votes are equal to no votes.", emotes)
         );
         loseEmote = Config.Bind<string>(
-            "Emotes (%e)", 
-            "Lose", 
-            ":yannicmegas:", 
+            "Emotes (%e)",
+            "Lose",
+            ":yannicmegas:",
             new ConfigDescription("Emote when no votes are greater than yes votes.", emotes)
         );
 
@@ -102,7 +108,18 @@ public class Plugin : BaseUnityPlugin
         ChatCommandApi.RegisterLocalChatCommand<VoteReset>();
         ChatCommandApi.RegisterLocalChatCommand<VoteStart>();
         ChatCommandApi.RegisterLocalChatCommand<VoteStop>();
+
         VoteReset.OnHandle += HandleRequestAsyncReset;
+
+        using (var httpClient = new HttpClient())
+        {
+            var levelUrl =
+                "https://yololurk.herokuapp.com/api/ronan/get/map/name?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
+            var authorUrl =
+                "https://yololurk.herokuapp.com/api/ronan/get/map/author?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
+            level = httpClient.GetAsync(levelUrl).Result.Content.ReadAsStringAsync().Result;
+            author = httpClient.GetAsync(authorUrl).Result.Content.ReadAsStringAsync().Result;
+        }
 
         _state = new StateInactive(this);
         _state.Enter();
@@ -111,29 +128,54 @@ public class Plugin : BaseUnityPlugin
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
     }
 
+
     private void OnDestroy()
     {
         _harmony?.UnpatchSelf();
         _harmony = null;
     }
 
-    public static async void HandleRequestAsyncReset()
+    public async void HandleRequestAsyncReset()
     {
-        var url = "https://yololurk.herokuapp.com/api/ronan/reset?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
+        var resetUrl = "https://yololurk.herokuapp.com/api/ronan/reset?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
         try
         {
             using (var httpClient = new HttpClient())
             {
-                var response = await httpClient.GetAsync(url);
-                if (response.IsSuccessStatusCode)
+                // First, perform the reset
+                var resetResponse = await httpClient.GetAsync(resetUrl);
+                if (!resetResponse.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    ChatApi.SendMessage(content);
+                    ChatApi.SendMessage($"Error during reset: {resetResponse.StatusCode}");
+                    return;
                 }
-                else
+
+                var resetResponseContent = await resetResponse.Content.ReadAsStringAsync();
+                ChatApi.SendMessage(resetResponseContent);
+
+                // Then, set the map and author
+                level = PlayerManager.Instance.currentMaster.GlobalLevel.Name;
+                author = PlayerManager.Instance.currentMaster.GlobalLevel.Author;
+                uid = ZeepkistNetwork.CurrentLobby.LevelUID;
+
+                var setMapUrl = "https://yololurk.herokuapp.com/api/ronan/set/map";
+                var content = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
-                    ChatApi.SendMessage($"Error: {response.StatusCode}");
+                    { "token", "7DCD7DB2-03D9-427A-936C-5CDBD0610991" },
+                    { "uid", uid },
+                    { "map", level },
+                    { "author", author }
+                });
+
+                var setMapResponse = await httpClient.PostAsync(setMapUrl, content);
+                if (!setMapResponse.IsSuccessStatusCode)
+                {
+                    ChatApi.SendMessage($"Error setting map: {setMapResponse.StatusCode}");
+                    return;
                 }
+
+                var setMapResponseContent = await setMapResponse.Content.ReadAsStringAsync();
+                Logger.LogInfo(setMapResponseContent);
             }
         }
         catch (Exception ex)
@@ -189,7 +231,7 @@ public class VoteNo : IRemoteChatCommand
 public class VoteReset : ILocalChatCommand
 {
     public string Prefix => "/";
-    public string Command => "reset";
+    public string Command => "vote reset";
 
     public string Description =>
         "Reset the votes and prints the result";

@@ -24,13 +24,13 @@
         <!-- Weitere Plugins und Bibliotheken -->
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
         <PackageReference Include="UnityEngine.Modules" Version="2021.3.10" IncludeAssets="compile"/>
-        <PackageReference Include="Zeepkist.GameLibs" Version="*-*"/>
+        <PackageReference Include="Zeepkist.GameLibs" Version="1.0.0-alpha.15.50.546" />
         <PackageReference Include="ZeepSDK" Version="1.*"/>
     </ItemGroup>
 
     <!-- Bedingte Abhängigkeiten -->
     <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
-        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
     </ItemGroup>
 
     <!-- Post-Build-Skripte -->

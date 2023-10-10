@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Timers;
 using BepInEx;
 using BepInEx.Configuration;
@@ -8,13 +9,15 @@ using UnityEngine.Purchasing;
 using ZeepkistClient;
 using ZeepSDK.Chat;
 using ZeepSDK.Messaging;
+using ZeepSDK.Multiplayer;
 using ZeepSDK.Racing;
 
 namespace PlaylistVoting;
 
 public class StateActive : State
 {
-    private Timer _updateTimer;
+    private Timer _timer;
+
 
     public StateActive(Plugin plugin) : base(plugin)
     {
@@ -25,8 +28,10 @@ public class StateActive : State
         VoteYes.OnHandle += HandleRequestAsyncYes;
         VoteNo.OnHandle += HandleRequestAsyncNo;
         RacingApi.LevelLoaded += OnPlayerSpawned;
+        MultiplayerApi.DisconnectedFromGame += OnVoteStopOnOnHandle;
         VoteStop.OnHandle += OnVoteStopOnOnHandle;
         VoteStart.OnHandle += OnVoteStartOnOnHandle;
+
         StartTimer();
     }
 
@@ -46,10 +51,10 @@ public class StateActive : State
         VoteYes.OnHandle -= HandleRequestAsyncYes;
         VoteNo.OnHandle -= HandleRequestAsyncNo;
         RacingApi.LevelLoaded -= OnPlayerSpawned;
+        MultiplayerApi.DisconnectedFromGame -= OnVoteStopOnOnHandle;
         VoteStop.OnHandle -= OnVoteStopOnOnHandle;
         VoteStart.OnHandle -= OnVoteStartOnOnHandle;
         StopTimer();
-        ChatApi.SendMessage("/servermessage remove");
     }
 
     private void OnPlayerSpawned()
@@ -60,20 +65,15 @@ public class StateActive : State
 
     public void StartTimer()
     {
-        _updateTimer = new Timer(2500); // Setze das Intervall auf 2,5 Sekunden
-        _updateTimer.Elapsed += (sender, e) => HandleRequestAsyncGet(
-            0); // Hier setze ich die playerId auf 0, da sie in HandleRequestAsyncGet nicht verwendet wird. Du kannst den Wert ändern, falls notwendig.
-        _updateTimer.Start();
-        HandleRequestAsyncGet(0);
+        _timer = new Timer(1000);
+        _timer.Elapsed += HandleRequestAsyncGet;
+        _timer.AutoReset = true;
+        _timer.Start();
     }
 
-    public async void HandleRequestAsync(string url)
+    public async Task HandleRequestAsync(string url)
     {
-        if (ZeepkistNetwork.CurrentLobby.GameState != 0)
-        {
-            StopTimer();
-            return;
-        }
+
 
         try
         {
@@ -87,12 +87,16 @@ public class StateActive : State
 
                     if (match.Success)
                     {
+                        if (ZeepkistNetwork.CurrentLobby.GameState != 0)
+                        {
+                            StopTimer();
+                            return;
+                        }
                         int yesVotes = int.Parse(match.Groups[1].Value);
                         int noVotes = int.Parse(match.Groups[2].Value);
 
-                        string color, emote, level, author;
-                        level = PlayerManager.Instance.currentMaster.GlobalLevel.Name;
-                        author = PlayerManager.Instance.currentMaster.GlobalLevel.Author;
+                        string color, emote;
+
                         if (yesVotes > noVotes)
                         {
                             color = Plugin.Instance.WinColor;
@@ -108,13 +112,13 @@ public class StateActive : State
                             color = Plugin.Instance.TieColor;
                             emote = Plugin.Instance.TieEmote;
                         }
-                        
+
                         string message = Plugin.Instance.MessageFormat
                             .Replace("%y", yesVotes.ToString())
                             .Replace("%n", noVotes.ToString())
                             .Replace("%e", emote)
-                            .Replace("%l", level)
-                            .Replace("%a", author);
+                            .Replace("%l", Plugin.level)
+                            .Replace("%a", Plugin.author);
                         if (message.IsNullOrWhiteSpace())
                             message = "No Message set. Please do so.";
                         color = color.ToLower();
@@ -137,8 +141,10 @@ public class StateActive : State
 
     public void StopTimer()
     {
-        _updateTimer?.Stop();
-        _updateTimer?.Dispose();
+        _timer.Stop();
+        _timer.Elapsed -= HandleRequestAsyncGet;
+        _timer.Dispose();
+        ChatApi.SendMessage("/servermessage remove");
     }
 
     public void HandleRequestAsyncNo(ulong playerId)
@@ -157,10 +163,10 @@ public class StateActive : State
         HandleRequestAsync(url);
     }
 
-    public void HandleRequestAsyncGet(ulong playerId)
+    public void HandleRequestAsyncGet(object sender, ElapsedEventArgs elapsedEventArgs)
     {
         var url =
-            "https://yololurk.herokuapp.com/api/ronan/get?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
+            "https://yololurk.herokuapp.com/api/ronan/get/total?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
         HandleRequestAsync(url);
     }
 }
