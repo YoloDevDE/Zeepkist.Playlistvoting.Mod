@@ -15,6 +15,7 @@
         <PackageId>PlaylistVoting</PackageId>
     </PropertyGroup>
 
+
     <!-- NuGet-Paketabhängigkeiten -->
     <ItemGroup>
         <!-- BepInEx Abhängigkeiten -->
@@ -24,26 +25,25 @@
         <!-- Weitere Plugins und Bibliotheken -->
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
         <PackageReference Include="UnityEngine.Modules" Version="2021.3.10" IncludeAssets="compile"/>
-        <PackageReference Include="Zeepkist.GameLibs" Version="1.0.0-alpha.15.50.546" />
+        <PackageReference Include="Zeepkist.GameLibs" Version="1.0.0-alpha.15.50.546"/>
         <PackageReference Include="ZeepSDK" Version="1.*"/>
     </ItemGroup>
 
     <!-- Bedingte Abhängigkeiten -->
     <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
-        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
     </ItemGroup>
 
     <!-- Post-Build Scripts -->
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
         <!-- Delete the plugin directory if it exists -->
-        <RemoveDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\$(ProjectName)"/>
+        <RemoveDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)"/>
 
         <!-- Create the plugin directory -->
-        <MakeDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\$(ProjectName)"/>
+        <MakeDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)"/>
 
         <!-- Copy DLL to the plugin directory -->
-        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
+        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
     </Target>
-
 
 </Project>
