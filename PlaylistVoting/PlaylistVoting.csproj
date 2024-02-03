@@ -33,16 +33,16 @@
         <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
     </ItemGroup>
 
-    <!-- Post-Build-Skripte -->
+    <!-- Post-Build Scripts -->
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-        <!-- Lösche das Plugin-Verzeichnis, falls es existiert -->
-        <RemoveDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\$(ProjectName)"/>
+        <!-- Delete the plugin directory if it exists -->
+        <RemoveDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\$(ProjectName)"/>
 
-        <!-- Erstelle das Plugin-Verzeichnis -->
-        <MakeDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\$(ProjectName)"/>
+        <!-- Create the plugin directory -->
+        <MakeDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\$(ProjectName)"/>
 
-        <!-- DLL in das Plugin-Verzeichnis kopieren -->
-        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
+        <!-- Copy DLL to the plugin directory -->
+        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
     </Target>
 
 

@@ -17,7 +17,7 @@ namespace PlaylistVoting;
 public class StateActive : State
 {
     private Timer _timer;
-
+    private bool HasRemindedToVote = false;
 
     public StateActive(Plugin plugin) : base(plugin)
     {
@@ -27,7 +27,7 @@ public class StateActive : State
     {
         VoteYes.OnHandle += HandleRequestAsyncYes;
         VoteNo.OnHandle += HandleRequestAsyncNo;
-        RacingApi.LevelLoaded += OnPlayerSpawned;
+        RacingApi.LevelLoaded += OnLevelLoaded;
         MultiplayerApi.DisconnectedFromGame += OnVoteStopOnOnHandle;
         VoteStop.OnHandle += OnVoteStopOnOnHandle;
         VoteStart.OnHandle += OnVoteStartOnOnHandle;
@@ -48,23 +48,26 @@ public class StateActive : State
 
     public override void Exit()
     {
+        
         VoteYes.OnHandle -= HandleRequestAsyncYes;
         VoteNo.OnHandle -= HandleRequestAsyncNo;
-        RacingApi.LevelLoaded -= OnPlayerSpawned;
+        RacingApi.LevelLoaded -= OnLevelLoaded;
         MultiplayerApi.DisconnectedFromGame -= OnVoteStopOnOnHandle;
         VoteStop.OnHandle -= OnVoteStopOnOnHandle;
         VoteStart.OnHandle -= OnVoteStartOnOnHandle;
         StopTimer();
     }
 
-    private void OnPlayerSpawned()
+    private void OnLevelLoaded()
     {
+        Plugin.HandleRequestAsyncReset();
         StartTimer();
     }
 
 
     public void StartTimer()
     {
+        HasRemindedToVote = false;
         _timer = new Timer(1000);
         _timer.Elapsed += HandleRequestAsyncGet;
         _timer.AutoReset = true;
@@ -73,7 +76,15 @@ public class StateActive : State
 
     public async Task HandleRequestAsync(string url)
     {
-
+        var timeLeft = ZeepkistNetwork.CurrentLobby.timeLeftString.Split(":");
+        
+        if(timeLeft[0] == "00" && int.Parse(timeLeft[1]) <= 30 && !HasRemindedToVote)
+        // if (ZeepkistNetwork.CurrentLobby.timeLeftString <= 30000 && !HasRemindedToVote)
+        {
+            ChatApi.SendMessage(
+                "<br>REMEMBER TO VOTE GUYS!<br>Type !y in the chat to get this Map into the playlist<br>Type !n if you don't want it in the Playlist");
+            HasRemindedToVote = true;
+        }
 
         try
         {
@@ -92,6 +103,7 @@ public class StateActive : State
                             StopTimer();
                             return;
                         }
+
                         int yesVotes = int.Parse(match.Groups[1].Value);
                         int noVotes = int.Parse(match.Groups[2].Value);
 
@@ -122,7 +134,6 @@ public class StateActive : State
                         if (message.IsNullOrWhiteSpace())
                             message = "No Message set. Please do so.";
                         color = color.ToLower();
-
                         ChatApi.SendMessage($"/servermessage {color} 0 {message}");
                     }
                     else
