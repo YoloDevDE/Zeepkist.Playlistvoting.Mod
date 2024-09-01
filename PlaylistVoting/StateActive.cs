@@ -4,10 +4,9 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Timers;
 using BepInEx;
-using BepInEx.Configuration;
-using UnityEngine.Purchasing;
 using ZeepkistClient;
 using ZeepSDK.Chat;
+using ZeepSDK.Level;
 using ZeepSDK.Messaging;
 using ZeepSDK.Multiplayer;
 using ZeepSDK.Racing;
@@ -17,7 +16,7 @@ namespace PlaylistVoting;
 public class StateActive : State
 {
     private Timer _timer;
-    private bool HasRemindedToVote = false;
+    private bool HasRemindedToVote;
 
     public StateActive(Plugin plugin) : base(plugin)
     {
@@ -48,7 +47,6 @@ public class StateActive : State
 
     public override void Exit()
     {
-        
         VoteYes.OnHandle -= HandleRequestAsyncYes;
         VoteNo.OnHandle -= HandleRequestAsyncNo;
         RacingApi.LevelLoaded -= OnLevelLoaded;
@@ -76,10 +74,10 @@ public class StateActive : State
 
     public async Task HandleRequestAsync(string url)
     {
-        var timeLeft = ZeepkistNetwork.CurrentLobby.timeLeftString.Split(":");
-        
-        if(timeLeft[0] == "00" && int.Parse(timeLeft[1]) <= 30 && !HasRemindedToVote)
-        // if (ZeepkistNetwork.CurrentLobby.timeLeftString <= 30000 && !HasRemindedToVote)
+        string[] timeLeft = ZeepkistNetwork.CurrentLobby.timeLeftString.Split(":");
+
+        if (timeLeft[0] == "00" && int.Parse(timeLeft[1]) <= 30 && !HasRemindedToVote)
+            // if (ZeepkistNetwork.CurrentLobby.timeLeftString <= 30000 && !HasRemindedToVote)
         {
             ChatApi.SendMessage(
                 "<br>REMEMBER TO VOTE GUYS!<br>Type !y in the chat to get this Map into the playlist<br>Type !n if you don't want it in the Playlist");
@@ -88,13 +86,13 @@ public class StateActive : State
 
         try
         {
-            using (var httpClient = new HttpClient())
+            using (HttpClient httpClient = new HttpClient())
             {
-                var response = await httpClient.GetAsync(url);
+                HttpResponseMessage response = await httpClient.GetAsync(url);
                 if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    var match = Regex.Match(content, @"Current Total -> (\d+)/(\d+) \(y/n\)");
+                    string content = await response.Content.ReadAsStringAsync();
+                    Match match = Regex.Match(content, @"Current Total -> (\d+)/(\d+) \(y/n\)");
 
                     if (match.Success)
                     {
@@ -126,15 +124,19 @@ public class StateActive : State
                         }
 
                         string message = Plugin.Instance.MessageFormat
-                            .Replace("%y", yesVotes.ToString())
-                            .Replace("%n", noVotes.ToString())
+                            .Replace("Current Total ->", $"<b><u>Playlist-Voting</u></b><br><#ff9900>{LevelApi.CurrentLevel.Name} <#ffffff>by <#ff9900>{LevelApi.CurrentLevel.Author}<#ffffff><br>Votes: ")
+                            .Replace("%y", $"<#00aa00>{yesVotes.ToString()}<#ffffff>")
+                            .Replace("%n", $"<#aa0000>{noVotes.ToString()}<#ffffff>")
                             .Replace("%e", emote)
                             .Replace("%l", Plugin.level)
                             .Replace("%a", Plugin.author);
                         if (message.IsNullOrWhiteSpace())
+                        {
                             message = "No Message set. Please do so.";
+                        }
+
                         color = color.ToLower();
-                        ChatApi.SendMessage($"/servermessage {color} 0 {message}");
+                        ChatApi.SendMessage($"/servermessage white 0 <align=\"left\"><size=\"30%\"><br><br>{message}<br><#ffffff></size><size=\"20%\"><voffset=-0.5em>Type !y in the chat if you like the current level</voffset><br>Type !n in the chat if not");
                     }
                     else
                     {
@@ -160,24 +162,24 @@ public class StateActive : State
 
     public void HandleRequestAsyncNo(ulong playerId)
     {
-        var url =
-            $"https://yololurk.herokuapp.com/api/ronan/no?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991&twitchUser={playerId}";
+        string url =
+            $"https://yololurk.herokuapp.com/api/ronan/no?token={Plugin.WebToken}&twitchUser={playerId}";
 
         HandleRequestAsync(url);
     }
 
     public void HandleRequestAsyncYes(ulong playerId)
     {
-        var url =
-            $"https://yololurk.herokuapp.com/api/ronan/yes?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991&twitchUser={playerId}";
+        string url =
+            $"https://yololurk.herokuapp.com/api/ronan/yes?token={Plugin.WebToken}&twitchUser={playerId}";
 
         HandleRequestAsync(url);
     }
 
     public void HandleRequestAsyncGet(object sender, ElapsedEventArgs elapsedEventArgs)
     {
-        var url =
-            "https://yololurk.herokuapp.com/api/ronan/get/total?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
+        string url =
+            $"https://yololurk.herokuapp.com/api/ronan/get/total?token={Plugin.WebToken}";
         HandleRequestAsync(url);
     }
 }

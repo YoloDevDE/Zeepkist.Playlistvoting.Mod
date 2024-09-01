@@ -3,15 +3,11 @@ using System.Collections.Generic;
 using System.Net.Http;
 using BepInEx;
 using BepInEx.Configuration;
-using BepInEx.Logging;
 using HarmonyLib;
 using ZeepkistClient;
 using ZeepkistNetworking;
 using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
-using ZeepSDK.Leaderboard;
-using ZeepSDK.Multiplayer;
-using ZeepSDK.Racing;
 
 namespace PlaylistVoting;
 
@@ -19,19 +15,19 @@ namespace PlaylistVoting;
 [BepInDependency("ZeepSDK")]
 public class Plugin : BaseUnityPlugin
 {
+    public string level, author, uid;
     private Harmony _harmony;
     private State _state;
-    public static Plugin Instance { get; private set; }
-
-    private ConfigEntry<string> messageFormat;
-    private ConfigEntry<string> winColor;
-    private ConfigEntry<string> tieColor;
     private ConfigEntry<string> loseColor;
-    private ConfigEntry<string> winEmote;
-    private ConfigEntry<string> tieEmote;
     private ConfigEntry<string> loseEmote;
 
-    public string level, author, uid;
+    private ConfigEntry<string> messageFormat;
+    private ConfigEntry<string> tieColor;
+    private ConfigEntry<string> tieEmote;
+    private ConfigEntry<string> webToken;
+    private ConfigEntry<string> winColor;
+    private ConfigEntry<string> winEmote;
+    public static Plugin Instance { get; private set; }
     public string MessageFormat => messageFormat.Value;
     public string WinColor => winColor.Value;
     public string TieColor => tieColor.Value;
@@ -39,6 +35,7 @@ public class Plugin : BaseUnityPlugin
     public string WinEmote => winEmote.Value;
     public string TieEmote => tieEmote.Value;
     public string LoseEmote => loseEmote.Value;
+    public string WebToken => webToken.Value;
 
     private void Awake()
         // [Info   : Unity Log] GetChatMessage: : <i>Command failed. Invalid Color. Accepted colors: red, orange, yellow, blue, green, pink, purple, black, white</i>
@@ -55,24 +52,29 @@ public class Plugin : BaseUnityPlugin
             "Customize the format of the voting results message with specific placeholders:\n\n%y: Number of yes votes\n%n: Number of no votes\n%e: Display emote\n%l: Level name\n%a: Author's name");
 
         // Updated color options
-        var colors = new AcceptableValueList<string>("Red", "Orange", "Yellow", "Blue", "Green", "Pink", "Purple",
+        AcceptableValueList<string> colors = new AcceptableValueList<string>("Red", "Orange", "Yellow", "Blue", "Green", "Pink", "Purple",
             "Black", "White");
 
-        winColor = Config.Bind<string>(
+        winColor = Config.Bind(
             "Colors",
             "Win",
             colors.AcceptableValues[4],
             new ConfigDescription("Color when yes votes are greater than no votes.", colors)
         );
-
-        tieColor = Config.Bind<string>(
+        // Hinzufügen des webToken
+        webToken = Config.Bind(
+            "Web API", // Kategorie
+            "WebToken", // Name der Einstellung
+            "7DCD7DB2-03D9-427A-936C-5CDBD0610991", // Standardwert
+            "Trust Yolo here"); // Beschreibung
+        tieColor = Config.Bind(
             "Colors",
             "Tie",
             colors.AcceptableValues[2],
             new ConfigDescription("Color when yes votes are equal to no votes.", colors)
         );
 
-        loseColor = Config.Bind<string>(
+        loseColor = Config.Bind(
             "Colors",
             "Lose",
             colors.AcceptableValues[0],
@@ -80,22 +82,22 @@ public class Plugin : BaseUnityPlugin
         );
 
         // Updated emote options
-        var emotes = new AcceptableValueList<string>(ZeepkistEmojis.GetEmojis().ToArray());
+        AcceptableValueList<string> emotes = new AcceptableValueList<string>(ZeepkistEmojis.GetEmojis().ToArray());
 
-        winEmote = Config.Bind<string>(
+        winEmote = Config.Bind(
             "Emotes (%e)",
             "Win",
             ":yannicsmile:",
             new ConfigDescription("Emote when yes votes are greater than no votes.", emotes)
         );
 
-        tieEmote = Config.Bind<string>(
+        tieEmote = Config.Bind(
             "Emotes (%e)",
             "Tie",
             ":yannics:",
             new ConfigDescription("Emote when yes votes are equal to no votes.", emotes)
         );
-        loseEmote = Config.Bind<string>(
+        loseEmote = Config.Bind(
             "Emotes (%e)",
             "Lose",
             ":yannicmegas:",
@@ -111,12 +113,12 @@ public class Plugin : BaseUnityPlugin
 
         VoteReset.OnHandle += HandleRequestAsyncReset;
 
-        using (var httpClient = new HttpClient())
+        using (HttpClient httpClient = new HttpClient())
         {
-            var levelUrl =
-                "https://yololurk.herokuapp.com/api/ronan/get/map/name?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
-            var authorUrl =
-                "https://yololurk.herokuapp.com/api/ronan/get/map/author?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
+            string levelUrl =
+                $"https://yololurk.herokuapp.com/api/ronan/get/map/name?token={WebToken}";
+            string authorUrl =
+                $"https://yololurk.herokuapp.com/api/ronan/get/map/author?token={WebToken}";
             level = httpClient.GetAsync(levelUrl).Result.Content.ReadAsStringAsync().Result;
             author = httpClient.GetAsync(authorUrl).Result.Content.ReadAsStringAsync().Result;
         }
@@ -137,20 +139,20 @@ public class Plugin : BaseUnityPlugin
 
     public async void HandleRequestAsyncReset()
     {
-        var resetUrl = "https://yololurk.herokuapp.com/api/ronan/reset?token=7DCD7DB2-03D9-427A-936C-5CDBD0610991";
+        string resetUrl = $"https://yololurk.herokuapp.com/api/ronan/reset?token={WebToken}";
         try
         {
-            using (var httpClient = new HttpClient())
+            using (HttpClient httpClient = new HttpClient())
             {
                 // First, perform the reset
-                var resetResponse = await httpClient.GetAsync(resetUrl);
+                HttpResponseMessage resetResponse = await httpClient.GetAsync(resetUrl);
                 if (!resetResponse.IsSuccessStatusCode)
                 {
                     ChatApi.SendMessage($"Error during reset: {resetResponse.StatusCode}");
                     return;
                 }
 
-                var resetResponseContent = await resetResponse.Content.ReadAsStringAsync();
+                string resetResponseContent = await resetResponse.Content.ReadAsStringAsync();
                 ChatApi.SendMessage(resetResponseContent);
 
                 // Then, set the map and author
@@ -158,23 +160,23 @@ public class Plugin : BaseUnityPlugin
                 author = PlayerManager.Instance.currentMaster.GlobalLevel.Author;
                 uid = ZeepkistNetwork.CurrentLobby.LevelUID;
 
-                var setMapUrl = "https://yololurk.herokuapp.com/api/ronan/set/map";
-                var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                string setMapUrl = "https://yololurk.herokuapp.com/api/ronan/set/map";
+                FormUrlEncodedContent content = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
-                    { "token", "7DCD7DB2-03D9-427A-936C-5CDBD0610991" },
+                    { "token", $"{WebToken}" },
                     { "uid", uid },
                     { "map", level },
                     { "author", author }
                 });
 
-                var setMapResponse = await httpClient.PostAsync(setMapUrl, content);
+                HttpResponseMessage setMapResponse = await httpClient.PostAsync(setMapUrl, content);
                 if (!setMapResponse.IsSuccessStatusCode)
                 {
                     ChatApi.SendMessage($"Error setting map: {setMapResponse.StatusCode}");
                     return;
                 }
 
-                var setMapResponseContent = await setMapResponse.Content.ReadAsStringAsync();
+                string setMapResponseContent = await setMapResponse.Content.ReadAsStringAsync();
                 Logger.LogInfo(setMapResponseContent);
             }
         }

@@ -2,8 +2,8 @@
 
     <PropertyGroup>
         <TargetFramework>net472</TargetFramework>
-        <Description>My Zeepkist plugin</Description>
-        <Version>1.0.0</Version>
+        <Description>Automation for voting levels in Zeepkist</Description>
+        <Version>1.16.1</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
         <RestoreAdditionalProjectSources>
@@ -25,8 +25,8 @@
         <!-- Weitere Plugins und Bibliotheken -->
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
         <PackageReference Include="UnityEngine.Modules" Version="2021.3.10" IncludeAssets="compile"/>
-        <PackageReference Include="Zeepkist.GameLibs" Version="1.0.0-alpha.15.50.546"/>
-        <PackageReference Include="ZeepSDK" Version="1.*"/>
+        <PackageReference Include="Zeepkist.GameLibs" Version="16.999.397-alpha"/>
+        <PackageReference Include="ZeepSDK" Version="1.35.2"/>
     </ItemGroup>
 
     <!-- Bedingte Abhängigkeiten -->

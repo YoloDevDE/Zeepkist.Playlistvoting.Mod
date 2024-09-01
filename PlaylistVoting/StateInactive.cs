@@ -1,5 +1,4 @@
-﻿using ZeepSDK.Chat;
-using ZeepSDK.Messaging;
+﻿using ZeepSDK.Messaging;
 
 namespace PlaylistVoting;
 
