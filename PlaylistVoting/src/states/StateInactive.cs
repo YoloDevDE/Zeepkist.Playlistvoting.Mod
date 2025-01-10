@@ -1,4 +1,5 @@
-﻿using ZeepSDK.Messaging;
+﻿using ZeepkistClient;
+using ZeepSDK.Messaging;
 
 namespace PlaylistVoting;
 
@@ -16,6 +17,12 @@ public class StateInactive : State
 
     private void OnVoteStartOnOnHandle()
     {
+        if (!ZeepkistNetwork.LocalPlayer.isHost)
+        {
+            MessengerApi.LogWarning("You are not the host! Vote failed to start");
+            return;
+        }
+
         MessengerApi.LogSuccess("Vote successfully started!");
         Plugin.SwitchState(new StateActive(Plugin));
     }

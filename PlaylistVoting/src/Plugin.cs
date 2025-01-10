@@ -18,20 +18,18 @@ public class Plugin : BaseUnityPlugin
     public string level, author, uid;
     private Harmony _harmony;
     private State _state;
-    private ConfigEntry<string> loseColor;
+    private ConfigEntry<bool> deleteNoLevels;
+    private ConfigEntry<bool> isTieLose;
     private ConfigEntry<string> loseEmote;
 
-    private ConfigEntry<string> messageFormat;
-    private ConfigEntry<string> tieColor;
+    private ConfigEntry<string> servermessageTitle;
     private ConfigEntry<string> tieEmote;
     private ConfigEntry<string> webToken;
-    private ConfigEntry<string> winColor;
     private ConfigEntry<string> winEmote;
     public static Plugin Instance { get; private set; }
-    public string MessageFormat => messageFormat.Value;
-    public string WinColor => winColor.Value;
-    public string TieColor => tieColor.Value;
-    public string LoseColor => loseColor.Value;
+    public bool DeleteNoLevels => deleteNoLevels.Value;
+    public bool IsTieLose => isTieLose.Value;
+    public string ServermessageTitle => servermessageTitle.Value;
     public string WinEmote => winEmote.Value;
     public string TieEmote => tieEmote.Value;
     public string LoseEmote => loseEmote.Value;
@@ -45,41 +43,32 @@ public class Plugin : BaseUnityPlugin
 
 
         Instance = this;
-        messageFormat = Config.Bind(
+
+
+        deleteNoLevels = Config.Bind(
             "Settings",
-            "MessageFormat",
-            "Current Total -> %y/%n (y/n) %e",
-            "Customize the format of the voting results message with specific placeholders:\n\n%y: Number of yes votes\n%n: Number of no votes\n%e: Display emote\n%l: Level name\n%a: Author's name");
+            "Delete rejected levels?",
+            false,
+            "Should a map that lost the vote be deleted from the playlist?");
+        // isTieLose = Config.Bind(
+        //     "Settings",
+        //     "Tie = lose vote? (WIP -> Does not do anything rn)",
+        //     true,
+        //     "Should a tied vote equals lose? (true = lose, false = win)");
+        servermessageTitle = Config.Bind(
+            "Settings",
+            "Servermessage",
+            "Playlist-Voting",
+            "Customize the title of the servermessage");
 
-        // Updated color options
-        AcceptableValueList<string> colors = new AcceptableValueList<string>("Red", "Orange", "Yellow", "Blue", "Green", "Pink", "Purple",
-            "Black", "White");
 
-        winColor = Config.Bind(
-            "Colors",
-            "Win",
-            colors.AcceptableValues[4],
-            new ConfigDescription("Color when yes votes are greater than no votes.", colors)
-        );
         // Hinzufügen des webToken
         webToken = Config.Bind(
             "Web API", // Kategorie
             "WebToken", // Name der Einstellung
-            "7DCD7DB2-03D9-427A-936C-5CDBD0610991", // Standardwert
+            "XXXXX-XXXXX-XXX-XXX-XXX", // Standardwert
             "Trust Yolo here"); // Beschreibung
-        tieColor = Config.Bind(
-            "Colors",
-            "Tie",
-            colors.AcceptableValues[2],
-            new ConfigDescription("Color when yes votes are equal to no votes.", colors)
-        );
 
-        loseColor = Config.Bind(
-            "Colors",
-            "Lose",
-            colors.AcceptableValues[0],
-            new ConfigDescription("Color when no votes are greater than yes votes.", colors)
-        );
 
         // Updated emote options
         AcceptableValueList<string> emotes = new AcceptableValueList<string>(ZeepkistEmojis.GetEmojis().ToArray());
@@ -105,8 +94,8 @@ public class Plugin : BaseUnityPlugin
         );
 
 
-        ChatCommandApi.RegisterRemoteChatCommand<VoteYes>();
-        ChatCommandApi.RegisterRemoteChatCommand<VoteNo>();
+        ChatCommandApi.RegisterMixedChatCommand<VoteYes>();
+        ChatCommandApi.RegisterMixedChatCommand<VoteNo>();
         ChatCommandApi.RegisterLocalChatCommand<VoteReset>();
         ChatCommandApi.RegisterLocalChatCommand<VoteStart>();
         ChatCommandApi.RegisterLocalChatCommand<VoteStop>();
@@ -114,6 +103,7 @@ public class Plugin : BaseUnityPlugin
         VoteReset.OnHandle += HandleRequestAsyncReset;
 
         using (HttpClient httpClient = new HttpClient())
+
         {
             string levelUrl =
                 $"https://yololurk.herokuapp.com/api/ronan/get/map/name?token={WebToken}";
@@ -137,7 +127,7 @@ public class Plugin : BaseUnityPlugin
         _harmony = null;
     }
 
-    public async void HandleRequestAsyncReset()
+    public async void HandleRequestAsyncReset(bool printResults)
     {
         string resetUrl = $"https://yololurk.herokuapp.com/api/ronan/reset?token={WebToken}";
         try
@@ -153,7 +143,13 @@ public class Plugin : BaseUnityPlugin
                 }
 
                 string resetResponseContent = await resetResponse.Content.ReadAsStringAsync();
-                ChatApi.SendMessage(resetResponseContent);
+                if (printResults)
+                {
+                    ChatApi.SendMessage(resetResponseContent);
+                    ZeepkistNetwork.SendCustomChatMessage(true,0,
+                        $"<br><color=#cfcfcf>{resetResponseContent}<br>------------</color>", Plugin.Instance.ServermessageTitle);
+
+                }
 
                 // Then, set the map and author
                 level = PlayerManager.Instance.currentMaster.GlobalLevel.Name;
@@ -187,96 +183,15 @@ public class Plugin : BaseUnityPlugin
         }
     }
 
+    public async void HandleRequestAsyncReset()
+    {
+        HandleRequestAsyncReset(true);
+    }
+
     public void SwitchState(State state)
     {
         _state.Exit();
         _state = state;
         _state.Enter();
     }
-}
-
-public class VoteYes : IRemoteChatCommand
-{
-    public string Prefix => "!";
-    public string Command => "y";
-
-    public string Description =>
-        "Votes Yes!";
-
-    public void Handle(ulong playerId, string arguments)
-    {
-        OnHandle?.Invoke(playerId);
-    }
-
-
-    // Event-Definition
-    public static event Action<ulong> OnHandle;
-}
-
-public class VoteNo : IRemoteChatCommand
-{
-    public string Prefix => "!";
-    public string Command => "n";
-
-    public string Description =>
-        "Votes No!";
-
-    public void Handle(ulong playerId, string arguments)
-    {
-        OnHandle?.Invoke(playerId);
-    }
-
-    // Event-Definition
-    public static event Action<ulong> OnHandle;
-}
-
-public class VoteReset : ILocalChatCommand
-{
-    public string Prefix => "/";
-    public string Command => "vote reset";
-
-    public string Description =>
-        "Reset the votes and prints the result";
-
-    public void Handle(string arguments)
-    {
-        OnHandle?.Invoke();
-    }
-
-    // Event-Definition
-    public static event Action OnHandle;
-}
-
-public class VoteStart : ILocalChatCommand
-{
-    public string Prefix => "/";
-    public string Command => "vote start";
-
-    public string Description =>
-        "Starts the Count!!";
-
-    public void Handle(string arguments)
-    {
-        OnHandle?.Invoke();
-    }
-
-    // Event-Definition
-    public static event Action OnHandle;
-}
-
-public class VoteStop : ILocalChatCommand
-{
-    public string Prefix => "/";
-    public string Command => "vote stop";
-
-    public string Description =>
-        "Stops the Count!!";
-
-    public void Handle(string arguments)
-    {
-        OnHandle?.Invoke();
-    }
-
-    // Event-Definition
-    public static event Action OnHandle;
 }
