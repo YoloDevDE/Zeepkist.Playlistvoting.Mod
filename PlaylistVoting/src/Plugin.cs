@@ -146,9 +146,8 @@ public class Plugin : BaseUnityPlugin
                 if (printResults)
                 {
                     ChatApi.SendMessage(resetResponseContent);
-                    ZeepkistNetwork.SendCustomChatMessage(true,0,
-                        $"<br><color=#cfcfcf>{resetResponseContent}<br>------------</color>", Plugin.Instance.ServermessageTitle);
-
+                    ZeepkistNetwork.SendCustomChatMessage(true, 0,
+                        $"<br><color=#cfcfcf>{resetResponseContent}<br>------------</color>", Instance.ServermessageTitle);
                 }
 
                 // Then, set the map and author
