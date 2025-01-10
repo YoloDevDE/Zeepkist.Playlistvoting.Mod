@@ -158,7 +158,7 @@ public class StateActive : State
             // if (ZeepkistNetwork.CurrentLobby.timeLeftString <= 30000 && !HasRemindedToVote)
         {
             ZeepkistNetwork.SendCustomChatMessage(true, 0,
-                "<br><color=#cfcfcf>REMEMBER TO <b>VOTE</b> GUYS!<br>Type <color=#00FF00><b>!y</b></color> in the chat to get this Map into the playlist<br>Type <color=#FF0000><b>!n</b></color> if you don't want it in the Playlist<br>------------</color>",
+                "<br><color=#f0f0f0>REMEMBER TO <b>VOTE</b> GUYS!<br>Type <color=#00FF00><b>!y</b></color> in the chat to get this Map into the playlist<br>Type <color=#FF0000><b>!n</b></color> if you don't want it in the Playlist<br>----------------</color>",
                 Plugin.Instance.ServermessageTitle);
             HasRemindedToVote = true;
         }
