@@ -32,9 +32,7 @@
     <!-- Bedingte Abhängigkeiten -->
     <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
         <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
-    </ItemGroup>
-
-    <!-- Post-Build Scripts -->
+    </ItemGroup><!-- Post-Build Scripts -->
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
         <!-- Delete the plugin directory if it exists -->
         <RemoveDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)"/>
@@ -44,6 +42,9 @@
 
         <!-- Copy DLL to the plugin directory -->
         <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
+
+        <!-- Create a zip file from the directory -->
+        <Exec Command="powershell Compress-Archive -Path &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\*&quot; -DestinationPath &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip&quot; -Force"/>
     </Target>
 
 </Project>
