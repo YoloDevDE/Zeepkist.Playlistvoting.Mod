@@ -145,7 +145,6 @@ public class Plugin : BaseUnityPlugin
                 string resetResponseContent = await resetResponse.Content.ReadAsStringAsync();
                 if (printResults)
                 {
-                    ChatApi.SendMessage(resetResponseContent);
                     ZeepkistNetwork.SendCustomChatMessage(true, 0,
                         $"<color=#f0f0f0>{resetResponseContent}<br>----------------</color>", Instance.ServermessageTitle);
                 }
