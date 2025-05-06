@@ -44,7 +44,7 @@
         <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
 
         <!-- Create a zip file from the directory -->
-        <Exec Command="powershell Compress-Archive -Path &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\*&quot; -DestinationPath &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip&quot; -Force"/>
+        <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\*&apos;&quot; -DestinationPath &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip&apos;&quot; -Force&quot;"/>
     </Target>
 
 </Project>
