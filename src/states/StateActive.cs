@@ -21,9 +21,9 @@ namespace PlaylistVoting.states;
 
 public class StateActive : State
 {
-    private Timer _timer;
     private bool _hasRemindedToVote;
     private int _noVotes;
+    private Timer _timer;
 
     private int _yesVotes;
 

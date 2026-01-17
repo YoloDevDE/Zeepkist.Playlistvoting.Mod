@@ -8,6 +8,7 @@ using PlaylistVoting.commands;
 using PlaylistVoting.states;
 using ZeepkistClient;
 using ZeepkistNetworking;
+using ZeepSDK;
 using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
 
@@ -18,13 +19,13 @@ namespace PlaylistVoting;
 public class Plugin : BaseUnityPlugin
 {
     public string level, author, uid;
-    private Harmony _harmony;
-    private State _state;
     private ConfigEntry<bool> _deleteNoLevels;
+    private Harmony _harmony;
     private ConfigEntry<bool> _isTieLose;
     private ConfigEntry<string> _loseEmote;
 
     private ConfigEntry<string> _servermessageTitle;
+    private State _state;
     private ConfigEntry<string> _tieEmote;
     private ConfigEntry<string> _webToken;
     private ConfigEntry<string> _winEmote;
