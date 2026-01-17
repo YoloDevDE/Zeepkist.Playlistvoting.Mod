@@ -1,8 +1,8 @@
-﻿using PlaylistVoting.states;
+﻿using PlaylistVoting.commands;
 using ZeepkistClient;
 using ZeepSDK.Messaging;
 
-namespace PlaylistVoting;
+namespace PlaylistVoting.states;
 
 public class StateInactive : State
 {

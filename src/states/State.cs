@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace PlaylistVoting;
+namespace PlaylistVoting.states;
 
 public abstract class State
 {

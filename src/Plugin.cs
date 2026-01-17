@@ -4,6 +4,8 @@ using System.Net.Http;
 using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
+using PlaylistVoting.commands;
+using PlaylistVoting.states;
 using ZeepkistClient;
 using ZeepkistNetworking;
 using ZeepSDK.Chat;

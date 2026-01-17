@@ -3,7 +3,7 @@ using ZeepkistClient;
 using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
 
-namespace PlaylistVoting;
+namespace PlaylistVoting.commands;
 
 public class VoteYes : IMixedChatCommand
 {

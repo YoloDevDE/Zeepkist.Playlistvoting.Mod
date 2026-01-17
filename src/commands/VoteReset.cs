@@ -1,7 +1,7 @@
 using System;
 using ZeepSDK.ChatCommands;
 
-namespace PlaylistVoting;
+namespace PlaylistVoting.commands;
 
 public class VoteReset : ILocalChatCommand
 {
