@@ -29,7 +29,7 @@ public class StateActive : State
 
     public StateActive(Plugin plugin) : base(plugin) { }
 
-    public bool IsRacing { get; set; } = true;
+    public bool IsRacing => ZeepkistNetwork.CurrentLobby.GameState == 0;
 
     public override void Enter()
     {
@@ -49,10 +49,7 @@ public class StateActive : State
         }
     }
 
-    private void OnRoundEnded()
-    {
-        IsRacing = false;
-    }
+    private void OnRoundEnded() { }
 
     private void OnMasterChanged(ZeepkistNetworkPlayer obj)
     {
@@ -99,7 +96,6 @@ public class StateActive : State
 
     private void OnLevelLoaded()
     {
-        IsRacing = true;
         Plugin.StartCoroutine(DelayedLevelCheck());
     }
 
@@ -108,8 +104,8 @@ public class StateActive : State
         const int delay = 3;
         if (_noVotes >= _yesVotes && Plugin.Instance.DeleteNoLevels && ZeepkistNetwork.CurrentLobby.Playlist.Count > 1)
         {
-            MessengerApi.LogWarning("Deleting the level from the playlist because it was rejected by the vote.", delay);
-            yield return new WaitForSeconds(delay);
+            MessengerApi.LogWarning("Deleting the level from the playlist because it was rejected by the vote.", delay + Plugin.Instance.DeleteRejectedDelaySeconds);
+            yield return new WaitForSeconds(delay + Plugin.Instance.DeleteRejectedDelaySeconds);
             if (ZeepkistNetwork.CurrentLobby.Playlist.Any(l => l.UID.Equals(Plugin.Instance.uid)))
             {
                 DeleteVotedLevelFromPlaylistAndDoMoreThingsCauseItsCool();

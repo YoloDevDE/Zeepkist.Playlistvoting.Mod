@@ -8,7 +8,6 @@ using PlaylistVoting.commands;
 using PlaylistVoting.states;
 using ZeepkistClient;
 using ZeepkistNetworking;
-using ZeepSDK;
 using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
 
@@ -20,6 +19,8 @@ public class Plugin : BaseUnityPlugin
 {
     public string level, author, uid;
     private ConfigEntry<bool> _deleteNoLevels;
+
+    private ConfigEntry<int> _deleteRejectedDelaySeconds;
     private Harmony _harmony;
     private ConfigEntry<bool> _isTieLose;
     private ConfigEntry<string> _loseEmote;
@@ -29,6 +30,7 @@ public class Plugin : BaseUnityPlugin
     private ConfigEntry<string> _tieEmote;
     private ConfigEntry<string> _webToken;
     private ConfigEntry<string> _winEmote;
+
     public static Plugin Instance { get; private set; }
     public bool DeleteNoLevels => _deleteNoLevels.Value;
     public bool IsTieLose => _isTieLose.Value;
@@ -38,15 +40,15 @@ public class Plugin : BaseUnityPlugin
     public string LoseEmote => _loseEmote.Value;
     public string WebToken => _webToken.Value;
 
+    public int DeleteRejectedDelaySeconds => Math.Max(0, _deleteRejectedDelaySeconds.Value);
+
     private void Awake()
         // [Info   : Unity Log] GetChatMessage: : <i>Command failed. Invalid Color. Accepted colors: red, orange, yellow, blue, green, pink, purple, black, white</i>
     {
         _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
         _harmony.PatchAll();
 
-
         Instance = this;
-
 
         _deleteNoLevels = Config.Bind(
             "Settings",
@@ -64,6 +66,15 @@ public class Plugin : BaseUnityPlugin
             "Playlist-Voting",
             "Customize the title of the servermessage");
 
+        _deleteRejectedDelaySeconds = Config.Bind(
+            "Settings",
+            "Deletion delay (seconds)",
+            0,
+            new ConfigDescription(
+                "Extra delay added before deleting a rejected level. 3s + custom delay set here (if set to 0 delay is 3 seconds) x = 3 + y. Number cant be negative",
+                new AcceptableValueRange<int>(0, 300)
+            )
+        );
 
         // Hinzufügen des webToken
         _webToken = Config.Bind(
