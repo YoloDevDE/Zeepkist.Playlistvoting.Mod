@@ -4,10 +4,9 @@
     <PropertyGroup>
         <TargetFramework>net472</TargetFramework>
         <Description>Automation for voting levels in Zeepkist</Description>
-        <Version>1.17.1</Version>
+        <Version>1.17.2</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
-        <PackageId>VertexSnapper</PackageId>
         <RestoreAdditionalProjectSources>
             https://api.nuget.org/v3/index.json;
             https://nuget.bepinex.dev/v3/index.json;
@@ -47,10 +46,11 @@
         <!-- Copy DLL to the plugin directory -->
         <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
         <!-- Copy assets folder recursively -->
-        <Exec Command="xcopy /E /I /Y &quot;$(ProjectDir)assets&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\assets&quot;"/>
+        <!--        <Exec Command="xcopy /E /I /Y &quot;$(ProjectDir)assets&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\assets&quot;"/>-->
         <!-- Create a zip file from the directory -->
         <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\*&apos;&quot; -DestinationPath &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip&apos;&quot; -Force&quot;"/>
     </Target>
+
 
     <!-- Enable debug logging -->
     <PropertyGroup>
