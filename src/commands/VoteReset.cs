@@ -1,4 +1,4 @@
-using System;
+using PlaylistVoting.core;
 using ZeepSDK.ChatCommands;
 
 namespace PlaylistVoting.commands;
@@ -12,9 +12,6 @@ public class VoteReset : ILocalChatCommand
 
     public void Handle(string arguments)
     {
-        OnHandle?.Invoke();
+        VotingEventBus.Hub.PublishVoteResetRequested();
     }
-
-    // Event-Definition
-    public static event Action OnHandle;
 }

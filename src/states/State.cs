@@ -1,31 +1,30 @@
-﻿using UnityEngine;
+﻿using PlaylistVoting.core;
 
 namespace PlaylistVoting.states;
 
+/// <summary>
+///     Base class for all voting states.
+/// </summary>
 public abstract class State
 {
-    public Plugin Plugin;
-
-    protected State(Plugin plugin)
+    protected State(VotingManager manager)
     {
-        Initialize(plugin);
+        Manager = manager;
     }
 
-    public void Initialize(Plugin plugin)
-    {
-        Plugin = plugin;
+    protected VotingManager Manager { get; }
 
-        // Ensure the plugin has a valid GameObject
-        if (plugin != null && plugin.gameObject != null)
-        {
-            plugin.gameObject.AddComponent(GetType());
-        }
-        else
-        {
-            Debug.LogWarning("Plugin or its GameObject is null. Initialization may fail.");
-        }
+    /// <summary>Called when this state becomes active.</summary>
+    public virtual void Enter()
+    {
+        VotingEventBus.Hub.GamePhaseChanged += OnGamePhaseChanged;
     }
 
-    public abstract void Enter();
-    public abstract void Exit();
+    /// <summary>Called when this state is being left.</summary>
+    public virtual void Exit()
+    {
+        VotingEventBus.Hub.GamePhaseChanged -= OnGamePhaseChanged;
+    }
+
+    protected virtual void OnGamePhaseChanged(GamePhase phase) { }
 }

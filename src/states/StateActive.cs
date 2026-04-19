@@ -1,14 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Timers;
-using BepInEx;
-using PlaylistVoting.commands;
-using UnityEngine;
+using PlaylistVoting.api;
+using PlaylistVoting.core;
 using ZeepkistClient;
 using ZeepkistNetworking;
 using ZeepSDK.Chat;
@@ -21,237 +17,276 @@ namespace PlaylistVoting.states;
 
 public class StateActive : State
 {
+    // ── Constants ─────────────────────────────────────────────────────────────
+    private const int TimerIntervalMs = 1000;
+    private const int LevelLoadedBaseDelaySeconds = 3;
+    private const int VoteReminderThresholdSeconds = 30;
     private bool _hasRemindedToVote;
     private int _noVotes;
-    private Timer _timer;
+    private Timer _pollTimer;
 
+    // ── Fields ────────────────────────────────────────────────────────────────
     private int _yesVotes;
 
-    public StateActive(Plugin plugin) : base(plugin) { }
+    public StateActive(VotingManager manager) : base(manager) { }
 
-    public bool IsRacing => ZeepkistNetwork.CurrentLobby.GameState == 0;
+    private bool IsCurrentlyRacing => Manager.CurrentPhase == GamePhase.Racing;
+
+    // ── State lifecycle ───────────────────────────────────────────────────────
 
     public override void Enter()
     {
-        VoteYes.OnHandle += HandleRequestAsyncYes;
-        VoteNo.OnHandle += HandleRequestAsyncNo;
+        base.Enter();
+        VotingEventBus.Hub.PlayerVotedYes += OnPlayerVotedYes;
+        VotingEventBus.Hub.PlayerVotedNo += OnPlayerVotedNo;
+        VotingEventBus.Hub.PlayerVotedRemove += OnPlayerVotedRemove;
+        VotingEventBus.Hub.VoteStartRequested += OnVoteStartRequestedWhileActive;
+        VotingEventBus.Hub.VoteStopRequested += OnVoteStopRequested;
         RacingApi.LevelLoaded += OnLevelLoaded;
-        MultiplayerApi.DisconnectedFromGame += OnVoteStopOnOnHandle;
-        VoteStop.OnHandle += OnVoteStopOnOnHandle;
-        VoteStart.OnHandle += OnVoteStartOnOnHandle;
-        ZeepkistNetwork.MasterChanged += OnMasterChanged;
         RacingApi.RoundEnded += OnRoundEnded;
+        MultiplayerApi.DisconnectedFromGame += OnVoteStopRequested;
+        ZeepkistNetwork.MasterChanged += OnMasterChanged;
 
-        StartTimer();
-        if (Plugin.Instance.uid != LevelApi.CurrentLevel.UID)
+        if (Manager.CurrentPhase == GamePhase.Racing)
         {
-            Plugin.HandleRequestAsyncReset(false);
+            StartPolling();
+        }
+
+        bool isNewLevel = Manager.CurrentLevelUid != LevelApi.CurrentLevel.UID;
+        if (isNewLevel)
+        {
+            _ = Manager.ResetVotesAsync(false);
         }
     }
 
-    private void OnRoundEnded() { }
-
-    private void OnMasterChanged(ZeepkistNetworkPlayer obj)
-    {
-        MessengerApi.LogWarning("Voting stopped because the host changed!");
-        Plugin.SwitchState(new StateInactive(Plugin));
-    }
-
-    private void OnVoteStartOnOnHandle()
-    {
-        MessengerApi.LogWarning("Vote is already running!");
-    }
-
-    private void OnVoteStopOnOnHandle()
-    {
-        MessengerApi.LogSuccess("Vote successfully stopped!");
-        Plugin.SwitchState(new StateInactive(Plugin));
-    }
 
     public override void Exit()
     {
-        VoteYes.OnHandle -= HandleRequestAsyncYes;
-        VoteNo.OnHandle -= HandleRequestAsyncNo;
+        base.Exit();
+        VotingEventBus.Hub.PlayerVotedYes -= OnPlayerVotedYes;
+        VotingEventBus.Hub.PlayerVotedNo -= OnPlayerVotedNo;
+        VotingEventBus.Hub.PlayerVotedRemove -= OnPlayerVotedRemove;
+        VotingEventBus.Hub.VoteStartRequested -= OnVoteStartRequestedWhileActive;
+        VotingEventBus.Hub.VoteStopRequested -= OnVoteStopRequested;
         RacingApi.LevelLoaded -= OnLevelLoaded;
-        MultiplayerApi.DisconnectedFromGame -= OnVoteStopOnOnHandle;
-        VoteStop.OnHandle -= OnVoteStopOnOnHandle;
-        VoteStart.OnHandle -= OnVoteStartOnOnHandle;
-        ZeepkistNetwork.MasterChanged -= OnMasterChanged;
         RacingApi.RoundEnded -= OnRoundEnded;
-        StopTimer();
+        MultiplayerApi.DisconnectedFromGame -= OnVoteStopRequested;
+        ZeepkistNetwork.MasterChanged -= OnMasterChanged;
+
+        StopPolling();
     }
 
-    public void DeleteVotedLevelFromPlaylistAndDoMoreThingsCauseItsCool()
+    protected override void OnGamePhaseChanged(GamePhase phase)
     {
-        List<OnlineZeeplevel> newPlaylist = ZeepkistNetwork.CurrentLobby.Playlist.Where(level => !level.UID.Equals(Plugin.Instance.uid)).ToList();
+        if (phase == GamePhase.Racing)
+        {
+            StartPolling();
+        }
+        else
+        {
+            StopPolling();
+        }
+    }
 
-        ZeepkistNetwork.CurrentLobby.Playlist.Clear();
-        ZeepkistNetwork.CurrentLobby.Playlist.AddRange(newPlaylist);
-        ZeepkistNetwork.CurrentLobby.PlaylistRandom = false;
-        ZeepkistNetwork.CurrentLobby.CurrentPlaylistIndex = ZeepkistNetwork.CurrentLobby.CurrentPlaylistIndex > 0 ? ZeepkistNetwork.CurrentLobby.CurrentPlaylistIndex - 1 : 0;
-        ZeepkistNetwork.CurrentLobby.NextPlaylistIndex = ZeepkistNetwork.CurrentLobby.NextPlaylistIndex < ZeepkistNetwork.CurrentLobby.Playlist.Count ? ZeepkistNetwork.CurrentLobby.NextPlaylistIndex - 1 : 0;
+    // ── Event handlers ────────────────────────────────────────────────────────
 
-        ZeepkistNetwork.SendLobbyPlaylistToServer(ZeepkistNetwork.CurrentLobby.CurrentPlaylistIndex, ZeepkistNetwork.CurrentLobby.NextPlaylistIndex);
+    private void OnRoundEnded()
+    {
+        /* Reserved for future use */
+    }
+
+    private void OnMasterChanged(ZeepkistNetworkPlayer newMaster)
+    {
+        MessengerApi.LogWarning("Vote stopped because the host changed!");
+        Manager.SwitchState(new StateInactive(Manager));
+    }
+
+    private void OnVoteStartRequestedWhileActive() => MessengerApi.LogWarning("A vote is already running!");
+
+    private void OnVoteStopRequested()
+    {
+        MessengerApi.LogSuccess("Vote successfully stopped!");
+        Manager.SwitchState(new StateInactive(Manager));
+    }
+
+    private void OnPlayerVotedYes(ulong playerId)
+    {
+        ZeepkistNetwork.SendCustomChatMessage(false, playerId, "You voted 'yes'.", Manager.ServermessageTitle);
+        _ = FetchAndDisplayVotesAsync(Manager.VotingApiClient.SubmitVoteYesAsync(playerId));
+    }
+
+    private void OnPlayerVotedRemove(ulong playerId)
+    {
+        ZeepkistNetwork.SendCustomChatMessage(false, playerId, "Your vote was removed.", Manager.ServermessageTitle);
+        _ = FetchAndDisplayVotesAsync(Manager.VotingApiClient.SubmitVoteRemoveAsync(playerId));
+    }
+
+    private void OnPlayerVotedNo(ulong playerId)
+    {
+        ZeepkistNetwork.SendCustomChatMessage(false, playerId, "You voted 'no'.", Manager.ServermessageTitle);
+        _ = FetchAndDisplayVotesAsync(Manager.VotingApiClient.SubmitVoteNoAsync(playerId));
     }
 
     private void OnLevelLoaded()
     {
-        Plugin.StartCoroutine(DelayedLevelCheck());
+        StopPolling();
+        // TODO Handle level loaded logic
+        _ = Manager.ResetVotesAsync();
+        StartPolling();
     }
 
-    private IEnumerator DelayedLevelCheck()
+    // ── Level change logic ────────────────────────────────────────────────────
+
+
+    private void TryRemoveRejectedLevelFromPlaylist()
     {
-        const int delay = 3;
-        if (_noVotes >= _yesVotes && Plugin.Instance.DeleteNoLevels && ZeepkistNetwork.CurrentLobby.Playlist.Count > 1)
+        string rejectedUid = Manager.CurrentLevelUid;
+        bool levelExistsInPlaylist = ZeepkistNetwork.CurrentLobby.Playlist.Any(l => l.UID.Equals(rejectedUid));
+
+        if (!levelExistsInPlaylist)
         {
-            MessengerApi.LogWarning("Deleting the level from the playlist because it was rejected by the vote.", delay + Plugin.Instance.DeleteRejectedDelaySeconds);
-            yield return new WaitForSeconds(delay + Plugin.Instance.DeleteRejectedDelaySeconds);
-            if (ZeepkistNetwork.CurrentLobby.Playlist.Any(l => l.UID.Equals(Plugin.Instance.uid)))
-            {
-                DeleteVotedLevelFromPlaylistAndDoMoreThingsCauseItsCool();
-                if (ZeepkistNetwork.CurrentLobby.Playlist.Any(l => l.UID.Equals(Plugin.Instance.uid)))
-                {
-                    MessengerApi.LogWarning("Failed to delete the level from the playlist!", 5f);
-                }
-                else
-                {
-                    MessengerApi.Log($"'{Plugin.Instance.level} by {Plugin.Instance.author}' was deleted from the playlist because it was rejected by the vote.");
-                }
-            }
-            else
-            {
-                MessengerApi.LogWarning($"Failed to delete '{Plugin.Instance.level} by {Plugin.Instance.author}' because it does not exist in the current playlist!", 5f);
-            }
+            MessengerApi.LogWarning(
+                $"Could not remove '{Manager.CurrentLevelName} by {Manager.CurrentLevelAuthor}' — not found in playlist.", 5f);
+            return;
         }
 
-        Plugin.HandleRequestAsyncReset();
-        StartTimer();
+        RemoveLevelFromPlaylist(rejectedUid);
+
+        bool removed = !ZeepkistNetwork.CurrentLobby.Playlist.Any(l => l.UID.Equals(rejectedUid));
+        if (removed)
+        {
+            MessengerApi.Log($"'{Manager.CurrentLevelName} by {Manager.CurrentLevelAuthor}' was removed from the playlist.");
+        }
+        else
+        {
+            MessengerApi.LogWarning("Failed to remove the level from the playlist!", 5f);
+        }
     }
 
-
-    public void StartTimer()
+    private void RemoveLevelFromPlaylist(string uid)
     {
+        ZeepkistLobby lobby = ZeepkistNetwork.CurrentLobby;
+
+        List<OnlineZeeplevel> filtered = lobby.Playlist
+                                              .Where(l => !l.UID.Equals(uid))
+                                              .ToList();
+
+        lobby.Playlist.Clear();
+        lobby.Playlist.AddRange(filtered);
+        lobby.PlaylistRandom = false;
+
+        lobby.CurrentPlaylistIndex = lobby.CurrentPlaylistIndex > 0 ? lobby.CurrentPlaylistIndex - 1 : 0;
+        lobby.NextPlaylistIndex = lobby.NextPlaylistIndex < lobby.Playlist.Count ? lobby.NextPlaylistIndex - 1 : 0;
+
+        ZeepkistNetwork.SendLobbyPlaylistToServer(lobby.CurrentPlaylistIndex, lobby.NextPlaylistIndex);
+    }
+
+    // ── Polling ───────────────────────────────────────────────────────────────
+
+    private void StartPolling()
+    {
+        if (_pollTimer != null)
+        {
+            return;
+        }
+
         _hasRemindedToVote = false;
-        _timer = new Timer(1000);
-        _timer.Elapsed += HandleRequestAsyncGet;
-        _timer.AutoReset = true;
-        _timer.Start();
+        _pollTimer = new Timer(TimerIntervalMs) { AutoReset = true };
+        _pollTimer.Elapsed += OnPollTimerElapsed;
+        _pollTimer.Start();
     }
 
-    public async Task HandleRequestAsync(string url)
+    private void StopPolling()
     {
-        string[] timeLeft = ZeepkistNetwork.CurrentLobby.timeLeftString.Split(":");
-
-        if (timeLeft[0] == "00" && int.Parse(timeLeft[1]) <= 30 && !_hasRemindedToVote)
-            // if (ZeepkistNetwork.CurrentLobby.timeLeftString <= 30000 && !HasRemindedToVote)
+        if (_pollTimer == null)
         {
-            ZeepkistNetwork.SendCustomChatMessage(true, 0,
-                "<br><color=#f0f0f0>REMEMBER TO <b>VOTE</b> GUYS!<br>Type <color=#00FF00><b>!y</b></color> in the chat to get this Map into the playlist<br>Type <color=#FF0000><b>!n</b></color> if you don't want it in the Playlist<br>----------------</color>",
-                Plugin.Instance.ServermessageTitle);
-            _hasRemindedToVote = true;
+            return;
         }
 
-        try
-        {
-            using HttpClient httpClient = new HttpClient();
-            HttpResponseMessage response = await httpClient.GetAsync(url);
-            if (response.IsSuccessStatusCode)
-            {
-                string content = await response.Content.ReadAsStringAsync();
-                Match match = Regex.Match(content, @"Current Total -> (\d+)/(\d+) \(y/n\)");
+        _pollTimer.Stop();
+        _pollTimer.Elapsed -= OnPollTimerElapsed;
+        _pollTimer.Dispose();
+        _pollTimer = null;
 
-
-                if (match.Success)
-                {
-                    if (ZeepkistNetwork.CurrentLobby.GameState != 0)
-                    {
-                        StopTimer();
-                        return;
-                    }
-
-                    _yesVotes = int.Parse(match.Groups[1].Value);
-                    _noVotes = int.Parse(match.Groups[2].Value);
-
-                    string emote;
-
-                    if (_yesVotes > _noVotes)
-                    {
-                        emote = Plugin.Instance.WinEmote;
-                    }
-                    else if (_yesVotes < _noVotes)
-                    {
-                        emote = Plugin.Instance.LoseEmote;
-                    }
-                    else
-                    {
-                        emote = Plugin.Instance.TieEmote;
-                    }
-
-                    string message = "Current Total -> %y/%n (y/n) %e";
-                    message = message
-                              .Replace("Current Total ->", $"<b><u>{Plugin.Instance.ServermessageTitle}</u></b><br><#ff9900>{Plugin.Instance.level} <#ffffff>by <#ff9900>{Plugin.Instance.author}<#ffffff><br>Votes: ")
-                              .Replace("%y", $"<#00aa00>{_yesVotes.ToString()}<#ffffff>")
-                              .Replace("%n", $"<#aa0000>{_noVotes.ToString()}<#ffffff>")
-                              .Replace("%e", emote)
-                              .Replace("%l", Plugin.level)
-                              .Replace("%a", Plugin.author);
-                    if (message.IsNullOrWhiteSpace())
-                    {
-                        message = "No Message set. Please do so.";
-                    }
-
-                    if (IsRacing)
-                    {
-                        ChatApi.SendMessage(
-                            $"/servermessage white 0 <align=\"left\"><size=\"30%\">{message}<br><#ffffff></size><size=\"20%\"><voffset=-0.5em>Type !y in the chat if you like the current level</voffset><br>Type !n in the chat if not");
-                    }
-                }
-                else
-                {
-                    MessengerApi.LogError("Error in Voting System");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            // Handle exception
-            ChatApi.SendMessage($"Error: {ex.Message}");
-        }
-    }
-
-    public void StopTimer()
-    {
-        _timer.Stop();
-        _timer.Elapsed -= HandleRequestAsyncGet;
-        _timer.Dispose();
-        if (IsRacing)
+        if (IsCurrentlyRacing)
         {
             ChatApi.SendMessage("/servermessage remove");
         }
     }
 
-    public void HandleRequestAsyncNo(ulong playerId)
-    {
-        ZeepkistNetwork.SendCustomChatMessage(false, playerId, "you voted 'no'", Plugin.ServermessageTitle);
-        string url =
-            $"https://yololurk.herokuapp.com/api/ronan/no?token={Plugin.WebToken}&twitchUser={playerId}";
+    private void OnPollTimerElapsed(object sender, ElapsedEventArgs e) => _ = FetchAndDisplayVotesAsync(Manager.VotingApiClient.FetchVoteTotalsAsync());
 
-        _ = HandleRequestAsync(url);
+    // ── Vote display ──────────────────────────────────────────────────────────
+
+    private async Task FetchAndDisplayVotesAsync(Task<VoteResult?> apiCall)
+    {
+        try
+        {
+            SendVoteReminderIfNeeded();
+
+            VoteResult? result = await apiCall;
+            if (result == null)
+            {
+                MessengerApi.LogError("Vote system error: received invalid API response.");
+                return;
+            }
+
+            if (!IsCurrentlyRacing)
+            {
+                StopPolling();
+                return;
+            }
+
+            _yesVotes = result.YesVotes;
+            _noVotes = result.NoVotes;
+
+            string message = BuildVoteDisplayMessage(result);
+            ChatApi.SendMessage(
+                $"/servermessage white 0 <align=\"left\"><size=\"30%\">{message}<br><#ffffff></size>" +
+                $"<size=\"20%\"><voffset=-0.5em>Type !y if you like the current level</voffset><br>Type !n if you don't");
+        }
+        catch (Exception ex)
+        {
+            ChatApi.SendMessage($"Error: {ex.Message}");
+        }
     }
 
-    public void HandleRequestAsyncYes(ulong playerId)
+    private void SendVoteReminderIfNeeded()
     {
-        ZeepkistNetwork.SendCustomChatMessage(false, playerId, "you voted 'yes'", Plugin.ServermessageTitle);
-        string url =
-            $"https://yololurk.herokuapp.com/api/ronan/yes?token={Plugin.WebToken}&twitchUser={playerId}";
+        if (_hasRemindedToVote)
+        {
+            return;
+        }
 
-        _ = HandleRequestAsync(url);
+        string[] timeParts = ZeepkistNetwork.CurrentLobby.timeLeftString.Split(":");
+        bool isLastMinute = timeParts[0] == "00";
+        bool underThreshold = int.Parse(timeParts[1]) <= VoteReminderThresholdSeconds;
+
+        if (!isLastMinute || !underThreshold)
+        {
+            return;
+        }
+
+        ZeepkistNetwork.SendCustomChatMessage(
+            true, 0,
+            "<br><#f0f0f0>LAST CHANCE TO <b>VOTE</b>!<br>" +
+            "Type <#00FF00><b>!y</b></color> to <b>keep</b> this level in the playlist<br>" +
+            "Type <#FF0000><b>!n</b></color> to remove it<br>----------------</color>",
+            Manager.ServermessageTitle);
+
+        _hasRemindedToVote = true;
     }
 
-    public void HandleRequestAsyncGet(object sender, ElapsedEventArgs elapsedEventArgs)
+    private string BuildVoteDisplayMessage(VoteResult result)
     {
-        string url =
-            $"https://yololurk.herokuapp.com/api/ronan/get/total?token={Plugin.WebToken}";
-        _ = HandleRequestAsync(url);
+        string emote = result.IsYesWinning
+            ? Manager.WinEmote
+            : result.IsNoWinning
+                ? Manager.LoseEmote
+                : Manager.TieEmote;
+
+        return $"<b><u>{Manager.ServermessageTitle}</u></b><br>" +
+               $"<#ff9900>{Manager.CurrentLevelName}</color> <#ffffff>by</color> <#ff9900>{Manager.CurrentLevelAuthor}</color><br>" +
+               $"Votes: <#00aa00>{result.YesVotes}</color><#ffffff>/<#aa0000>{result.NoVotes}</color> (yes/no) (!y/!n) {emote}";
     }
 }

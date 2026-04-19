@@ -5,12 +5,12 @@ using ZeepSDK.ChatCommands;
 
 namespace PlaylistVoting.commands;
 
-public class VoteYes : IMixedChatCommand
+public class VoteRemove : IMixedChatCommand
 {
     public string Prefix => "!";
-    public string Command => "y";
+    public string Command => "r";
 
-    public string Description => "Votes Yes!";
+    public string Description => "Removes your vote";
 
     public void Handle(string arguments)
     {
@@ -20,6 +20,6 @@ public class VoteYes : IMixedChatCommand
 
     public void Handle(ulong playerId, string arguments)
     {
-        VotingEventBus.Hub.PublishPlayerVotedYes(playerId);
+        VotingEventBus.Hub.PublishPlayerVotedRemove(playerId);
     }
 }
