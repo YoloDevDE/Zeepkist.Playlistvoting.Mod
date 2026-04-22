@@ -9,25 +9,9 @@ using ZeepSDK.Playlist;
 
 namespace PlaylistVoting.misc;
 
-public interface IPlaylistService
+public class PlaylistService(ManualLogSource logger)
 {
-    void CreatePlaylist(string name, List<LevelScriptableObject> levels = null, int roundLength = 420, bool shuffle = true);
-    void AddLevelToPlaylist(LevelScriptableObject level, string playlistName);
-    void RemoveLevelFromPlaylist(LevelScriptableObject level, string playlistName);
-    void RemoveLevelFromPlaylist(OnlineZeeplevel level, string playlistName);
-    void DeletePlaylist(string name);
-    IEnumerable<string> GetAllPlaylistNames();
-}
-
-public class PlaylistService : IPlaylistService
-{
-    private readonly ManualLogSource _logger;
     private readonly string _playlistsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Zeepkist", "Playlists");
-
-    public PlaylistService(ManualLogSource logger)
-    {
-        _logger = logger;
-    }
 
     public void CreatePlaylist(
         string name,
@@ -58,7 +42,7 @@ public class PlaylistService : IPlaylistService
     {
         if (!PlaylistApi.Exists(playlistName))
         {
-            _logger.LogError($"Playlist '{playlistName}' does not exist.");
+            logger.LogError($"Playlist '{playlistName}' does not exist.");
             return;
         }
 
@@ -72,7 +56,7 @@ public class PlaylistService : IPlaylistService
     {
         if (!PlaylistApi.Exists(playlistName))
         {
-            _logger.LogError($"Playlist '{playlistName}' does not exist.");
+            logger.LogError($"Playlist '{playlistName}' does not exist.");
             return;
         }
 
@@ -86,7 +70,7 @@ public class PlaylistService : IPlaylistService
     {
         if (!PlaylistApi.Exists(playlistName))
         {
-            _logger.LogError($"Playlist '{playlistName}' does not exist.");
+            logger.LogError($"Playlist '{playlistName}' does not exist.");
             return;
         }
 
@@ -94,7 +78,7 @@ public class PlaylistService : IPlaylistService
         OnlineZeeplevel onlineZeeplevel = playlist.levels.Find(l => l.UID == level.UID);
         if (onlineZeeplevel == null)
         {
-            _logger.LogError($"Level '{level.Name}' not found in playlist '{playlistName}'.");
+            logger.LogError($"Level '{level.Name}' not found in playlist '{playlistName}'.");
             return;
         }
 
@@ -116,7 +100,7 @@ public class PlaylistService : IPlaylistService
             }
             catch (Exception e)
             {
-                _logger.LogError($"Failed to read playlist at '{path}': {e.Message}");
+                logger.LogError($"Failed to read playlist at '{path}': {e.Message}");
                 continue;
             }
 
@@ -128,19 +112,19 @@ public class PlaylistService : IPlaylistService
                     try
                     {
                         File.Delete(path);
-                        _logger.LogInfo($"Deleted playlist file: '{path}'");
+                        logger.LogInfo($"Deleted playlist file: '{path}'");
                         return;
                     }
                     catch (Exception deleteException)
                     {
-                        _logger.LogError($"Failed to delete playlist at '{path}': {deleteException.Message}");
+                        logger.LogError($"Failed to delete playlist at '{path}': {deleteException.Message}");
                         throw;
                     }
                 }
             }
             catch (Exception e)
             {
-                _logger.LogError($"Failed to deserialize playlist at '{path}': {e.Message}");
+                logger.LogError($"Failed to deserialize playlist at '{path}': {e.Message}");
             }
         }
     }

@@ -1,22 +1,41 @@
 using System;
+using PlaylistVoting.misc;
 
 namespace PlaylistVoting.core;
 
-public class VotingEventHub : IVotingEventHub
+public interface IVotingEventHub
 {
-    public event Action<ulong> PlayerVotedYes;
-    public event Action<ulong> PlayerVotedNo;
-    public event Action<ulong> PlayerVotedRemove;
-    public event Action VoteStartRequested;
-    public event Action VoteStopRequested;
-    public event Action VoteResetRequested;
-    public event Action<GamePhase> GamePhaseChanged;
+    public event Action<ulong, VotingType> PlayerVoted;
+    public event Action VotingStarted;
+    public event Action VotingStopped;
+    public event Action VotingReset;
+    public event Action<ZeepkistLobbyState> ZeepkistLobbyStateChanged;
 
-    public void PublishPlayerVotedYes(ulong playerId) => PlayerVotedYes?.Invoke(playerId);
-    public void PublishPlayerVotedNo(ulong playerId) => PlayerVotedNo?.Invoke(playerId);
-    public void PublishPlayerVotedRemove(ulong playerId) => PlayerVotedRemove?.Invoke(playerId);
-    public void PublishVoteStartRequested() => VoteStartRequested?.Invoke();
-    public void PublishVoteStopRequested() => VoteStopRequested?.Invoke();
-    public void PublishVoteResetRequested() => VoteResetRequested?.Invoke();
-    public void PublishGamePhaseChanged(GamePhase phase) => GamePhaseChanged?.Invoke(phase);
+
+    public void OnPlayerVoted(ulong steamId, VotingType votingType);
+    public void OnVotingStarted();
+    public void OnVotingStopped();
+    public void OnZeepkistLobbyStateChanged(ZeepkistLobbyState zeepkistLobbyState);
+    public void OnVotingReset();
+}
+
+public sealed class VotingEventHub : IVotingEventHub
+{
+
+    public event Action<ulong, VotingType> PlayerVoted;
+
+    public event Action VotingStarted;
+    public event Action VotingStopped;
+    public event Action VotingReset;
+    public event Action<ZeepkistLobbyState> ZeepkistLobbyStateChanged;
+
+    public void OnPlayerVoted(ulong steamId, VotingType votingType) => PlayerVoted?.Invoke(steamId, votingType);
+
+    public void OnVotingStarted() => VotingStarted?.Invoke();
+
+    public void OnVotingStopped() => VotingStopped?.Invoke();
+
+    public void OnZeepkistLobbyStateChanged(ZeepkistLobbyState obj) => ZeepkistLobbyStateChanged?.Invoke(obj);
+    public void OnVotingReset() => VotingReset?.Invoke();
+    
 }

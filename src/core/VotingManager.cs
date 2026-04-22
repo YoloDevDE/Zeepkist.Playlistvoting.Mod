@@ -1,106 +1,312 @@
 using System;
 using System.Threading.Tasks;
-using BepInEx.Configuration;
 using BepInEx.Logging;
 using PlaylistVoting.api;
-using PlaylistVoting.commands;
+using PlaylistVoting.commands.local;
+using PlaylistVoting.commands.remote;
 using PlaylistVoting.misc;
-using PlaylistVoting.states;
+using UnityEngine;
 using ZeepkistClient;
-using ZeepkistNetworking;
+using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
 
 namespace PlaylistVoting.core;
 
-/// <summary>
-///     Central manager that owns configuration, state machine, and API client.
-///     Acts as the application context — wired up once by <see cref="Plugin" />.
-/// </summary>
-public class VotingManager : IDisposable
+public enum VotingState
 {
+    Inactive,
+    Active
+}
+
+/// <summary>
+///     Central manager that owns configuration, state, and API client.
+/// </summary>
+public class VotingManager : MonoBehaviour
+{
+    // ── Constants ─────────────────────────────────────────────────────────────
+    private const float TimerIntervalSeconds = 5f;
+    private const int VoteReminderThresholdSeconds = 30;
+    private bool _hasRemindedToVote;
+
     // ── Private fields ───────────────────────────────────────────────────────
-    private readonly ConfigFile _config;
-    private readonly ManualLogSource _logger;
-    private State _currentState;
-    private ConfigEntry<int> _deleteRejectedDelaySeconds;
+    private ManualLogSource _logger;
+    private int _noVotes;
+    private float _pollTimer;
+    private VotingState _state = VotingState.Inactive;
 
-    private ConfigEntry<bool> _deleteRejectedLevels;
-    private GamePhaseListener _gamePhaseListener;
-    private ConfigEntry<string> _loseEmote;
+    private bool _voteStartRequested;
 
-    private ConfigEntry<string> _servermessageTitle;
-    private ConfigEntry<string> _tieEmote;
-    private ConfigEntry<string> _webApiUrl;
-    private ConfigEntry<string> _webToken;
-    private ConfigEntry<string> _winEmote;
-
-    public VotingManager(ConfigFile config, ManualLogSource logger)
-    {
-        _config = config;
-        _logger = logger;
-        Instance = this;
-    }
+    private int _yesVotes;
+    private ZeepkistLobbyStateListener _zeepkistLobbyStateListener;
 
     // ── Public state ─────────────────────────────────────────────────────────
     public string CurrentLevelName { get; set; } = string.Empty;
     public string CurrentLevelAuthor { get; set; } = string.Empty;
     public string CurrentLevelUid { get; set; } = string.Empty;
-
-    // ── Configuration properties ─────────────────────────────────────────────
-    public bool DeleteRejectedLevels => _deleteRejectedLevels.Value;
-    public int DeleteRejectedDelaySeconds => Math.Max(0, _deleteRejectedDelaySeconds.Value);
-    public string ServermessageTitle => _servermessageTitle.Value;
-    public string WinEmote => _winEmote.Value;
-    public string TieEmote => _tieEmote.Value;
-    public string LoseEmote => _loseEmote.Value;
-
-    public string WebApiUrl => _webApiUrl.Value;
-
-    // ── Dependencies ─────────────────────────────────────────────────────────
-    public VotingApiClient VotingApiClient { get; private set; }
-
-    public static VotingManager Instance { get; private set; }
-
     public ulong CurrentLevelWorkshopID { get; set; }
 
-    public GamePhase CurrentPhase => _gamePhaseListener?.CurrentPhase ?? GamePhase.Unknown;
+    // ── Dependencies ─────────────────────────────────────────────────────────
+    public RestController RestController { get; private set; }
+    public static VotingManager Instance { get; private set; }
+    public ZeepkistLobbyState CurrentZeepkistLobbyState => _zeepkistLobbyStateListener?.CurrentState ?? ZeepkistLobbyState.NotInALobby;
 
-    public void Dispose()
+    public string WinEmote => VotingConfig.Instance.WinEmote;
+    public string TieEmote => VotingConfig.Instance.TieEmote;
+    public string LoseEmote => VotingConfig.Instance.LoseEmote;
+
+    public string ServermessageTitle { get; set; } = "Playlist Voting";
+
+    private void Awake()
     {
-        _currentState?.Exit();
-        _gamePhaseListener?.Dispose();
+        Instance = this;
     }
 
-    public async Task InitializeAsync()
+    private void Update()
     {
-        BindConfiguration();
+        switch (_state)
+        {
+            case VotingState.Inactive:
+                UpdateInactive();
+                break;
+            case VotingState.Active:
+                UpdateActive();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        _zeepkistLobbyStateListener?.Dispose();
+
+        if (VotingEventBus.Hub != null)
+        {
+            VotingEventBus.Hub.VotingStarted -= OnVoteStartRequested;
+            VotingEventBus.Hub.VotingStopped -= OnVoteStopRequested;
+            VotingEventBus.Hub.PlayerVoted -= OnPlayerVoted;
+            VotingEventBus.Hub.ZeepkistLobbyStateChanged -= OnZeepkistLobbyStateChanged;
+        }
+    }
+
+    public void Initialize(ManualLogSource logger)
+    {
+        _logger = logger;
         RegisterChatCommands();
 
         VotingEventBus.Hub = new VotingEventHub();
-        _gamePhaseListener = new GamePhaseListener();
-        VotingApiClient = new VotingApiClient(() => _webToken.Value, () => _webApiUrl.Value);
+        _zeepkistLobbyStateListener = new ZeepkistLobbyStateListener();
+        RestController = new RestController();
 
-        await LoadInitialLevelDataAsync();
-
-        SwitchState(new StateInactive(this));
+        // Subscribe to events
+        VotingEventBus.Hub.VotingStarted+= OnVoteStartRequested;
+        VotingEventBus.Hub.VotingStopped += OnVoteStopRequested;
+        VotingEventBus.Hub.PlayerVoted += OnPlayerVoted;
+        VotingEventBus.Hub.ZeepkistLobbyStateChanged += OnZeepkistLobbyStateChanged;
     }
 
-    // ── State machine ─────────────────────────────────────────────────────────
-
-    public void SwitchState(State newState)
+    private void UpdateInactive()
     {
-        _currentState?.Exit();
-        _currentState = newState;
-        _currentState.Enter();
+        if (_voteStartRequested && CurrentZeepkistLobbyState == ZeepkistLobbyState.Racing)
+        {
+            _voteStartRequested = false;
+            StartVote();
+        }
     }
 
-    // ── Vote reset ────────────────────────────────────────────────────────────
+    private void UpdateActive()
+    {
+        if (CurrentZeepkistLobbyState != ZeepkistLobbyState.Racing)
+        {
+            StopVote();
+            return;
+        }
+
+        _pollTimer -= Time.deltaTime;
+        if (_pollTimer <= 0)
+        {
+            _pollTimer = TimerIntervalSeconds;
+            _ = FetchAndDisplayVotesAsync();
+        }
+    }
+
+    // ── State Transitions ────────────────────────────────────────────────────
+
+    private void StartVote()
+    {
+        _state = VotingState.Active;
+        _hasRemindedToVote = false;
+        _pollTimer = 0; // Trigger immediate poll
+        ToastNotification.Custom("Mod started", Color.black, Color.green);
+    }
+
+    private void StopVote()
+    {
+        _state = VotingState.Inactive;
+        ChatApi.SendMessage("/servermessage remove");
+    }
+
+    // ── Event Handlers ───────────────────────────────────────────────────────
+
+    private void OnVoteStartRequested()
+    {
+        if (!ZeepkistNetwork.LocalPlayer.isHost)
+        {
+            ToastNotification.Warning("Only the host can start the vote!");
+            return;
+        }
+
+        if (_state == VotingState.Active)
+        {
+            ToastNotification.Warning("Mod is already running.");
+            return;
+        }
+
+        if (CurrentZeepkistLobbyState != ZeepkistLobbyState.Racing)
+        {
+            _voteStartRequested = true;
+            ToastNotification.Custom("start pending.<br>Playlist Voting will immediately start next round!", Color.black, Color.yellow);
+            return;
+        }
+
+        ToastNotification.Custom("Mod started", Color.black, Color.green);
+        StartVote();
+    }
+
+    private void OnVoteStopRequested()
+    {
+        if (_state == VotingState.Active)
+        {
+            StopVote();
+            ToastNotification.Custom("stopped", Color.black, Color.red);
+        }
+        else
+        {
+            ToastNotification.Warning("is not currently running.<br>Type '<#00ff00><b>/vote start<b/></color>' to start it");
+        }
+    }
+
+    private void OnPlayerVoted(ulong steamId, VotingType votingType)
+    {
+        if (_state != VotingState.Active)
+        {
+            return;
+        }
+
+        _ = HandleVoteAsync(steamId, votingType);
+    }
+
+    private async Task HandleVoteAsync(ulong steamId, VotingType votingType)
+    {
+        VoteResult result = await RestController.SubmitVoteAsync(steamId, votingType);
+
+        if (result != null)
+        {
+            string message = votingType switch
+            {
+                VotingType.Yes => "You voted 'yes'.",
+                VotingType.No => "You voted 'no'.",
+                VotingType.Remove => "Your vote was removed.",
+                _ => "Vote submitted."
+            };
+
+            ZeepkistNetwork.SendCustomChatMessage(false, steamId, message, ServermessageTitle);
+            _ = FetchAndDisplayVotesAsync();
+        }
+    }
+
+    private void OnZeepkistLobbyStateChanged(ZeepkistLobbyState phase)
+    {
+        if (phase != ZeepkistLobbyState.Racing && _state == VotingState.Active)
+        {
+            // End of round logic
+            _ = ResetVotesAsync(false);
+            StopVote();
+        }
+    }
+
+    // ── Logic ────────────────────────────────────────────────────────────────
+
+    private async Task FetchAndDisplayVotesAsync()
+    {
+        try
+        {
+            SendVoteReminderIfNeeded();
+
+            VoteResult result = await RestController.FetchVoteTotalsAsync();
+            if (result == null)
+            {
+                return;
+            }
+
+            if (_state != VotingState.Active)
+            {
+                return;
+            }
+
+            _yesVotes = result.YesVotes;
+            _noVotes = result.NoVotes;
+
+            string message = BuildVoteDisplayMessage(result);
+            ChatApi.SendMessage(
+                $"/servermessage white 0 <align=\"left\"><size=\"30%\">{message}<br><#ffffff></size>" +
+                $"<size=\"20%\"><voffset=-0.5em>Type !y if you like the current level</voffset><br>Type !n if you don't");
+        }
+        catch (Exception ex)
+        {
+            if (_logger != null)
+            {
+                _logger.LogError($"Error fetching votes: {ex.Message}");
+            }
+        }
+    }
+
+    private void SendVoteReminderIfNeeded()
+    {
+        if (_hasRemindedToVote || ZeepkistNetwork.CurrentLobby == null)
+        {
+            return;
+        }
+
+        string[] timeParts = ZeepkistNetwork.CurrentLobby.timeLeftString.Split(':');
+        if (timeParts.Length < 2)
+        {
+            return;
+        }
+
+        bool isLastMinute = timeParts[0] == "00";
+        if (int.TryParse(timeParts[1], out int seconds) && isLastMinute && seconds <= VoteReminderThresholdSeconds)
+        {
+            ZeepkistNetwork.SendCustomChatMessage(
+                true, 0,
+                "<br><#f0f0f0>LAST CHANCE TO <b>VOTE</b>!<br>" +
+                "Type <#00FF00><b>!y</b></color> to <b>keep</b> this level in the playlist<br>" +
+                "Type <#FF0000><b>!n</b></color> to remove it<br>----------------</color>",
+                ServermessageTitle);
+
+            _hasRemindedToVote = true;
+        }
+    }
+
+    private string BuildVoteDisplayMessage(VoteResult result)
+    {
+        string emote = result.IsYesWinning
+            ? WinEmote
+            : result.IsNoWinning
+                ? LoseEmote
+                : TieEmote;
+
+        return $"<b><u>{ServermessageTitle}</u></b><br>" +
+               $"<#ff9900>{CurrentLevelName}</color> <#ffffff>by</color> <#ff9900>{CurrentLevelAuthor}</color><br>" +
+               $"Votes: <#00aa00>{result.YesVotes}</color><#ffffff>/<#aa0000>{result.NoVotes}</color> (yes/no) (!y/!n) {emote}";
+    }
+
 
     public async Task ResetVotesAsync(bool printResults = true)
     {
         try
         {
-            string resetResult = await VotingApiClient.ResetVotesAsync();
+            string resetResult = await RestController.ResetVotesAsync();
 
             if (printResults)
             {
@@ -110,12 +316,19 @@ public class VotingManager : IDisposable
                     ServermessageTitle);
             }
 
-            CurrentLevelName = PlayerManager.Instance.currentMaster.GlobalLevel.Name;
-            CurrentLevelAuthor = PlayerManager.Instance.currentMaster.GlobalLevel.Author;
-            CurrentLevelUid = ZeepkistNetwork.CurrentLobby.LevelUID;
-            CurrentLevelWorkshopID = ZeepkistNetwork.CurrentLobby.WorkshopID;
+            if (PlayerManager.Instance?.currentMaster?.GlobalLevel != null)
+            {
+                CurrentLevelName = PlayerManager.Instance.currentMaster.GlobalLevel.Name;
+                CurrentLevelAuthor = PlayerManager.Instance.currentMaster.GlobalLevel.Author;
+            }
 
-            bool success = await VotingApiClient.SetMapAsync(CurrentLevelUid, CurrentLevelName, CurrentLevelAuthor, CurrentLevelWorkshopID.ToString());
+            if (ZeepkistNetwork.CurrentLobby != null)
+            {
+                CurrentLevelUid = ZeepkistNetwork.CurrentLobby.LevelUID;
+                CurrentLevelWorkshopID = ZeepkistNetwork.CurrentLobby.WorkshopID;
+            }
+
+            bool success = await RestController.SetCurrentLevelAsync(CurrentLevelUid, CurrentLevelName, CurrentLevelAuthor, CurrentLevelWorkshopID.ToString());
             if (!success)
             {
                 ZeepkistNetwork.SendCustomChatMessage(
@@ -133,69 +346,12 @@ public class VotingManager : IDisposable
         }
     }
 
-    // ── Private setup ─────────────────────────────────────────────────────────
-
-    private void BindConfiguration()
-    {
-        _deleteRejectedLevels = _config.Bind(
-            "Settings", "Delete rejected levels?", false,
-            "Should a map that lost the vote be deleted from the playlist?");
-
-        _deleteRejectedDelaySeconds = _config.Bind(
-            "Settings", "Deletion delay (seconds)", 0,
-            new ConfigDescription(
-                "Extra delay before deleting a rejected level. Total delay = 3s + this value.",
-                new AcceptableValueRange<int>(0, 300)));
-
-        _servermessageTitle = _config.Bind(
-            "Settings", "Servermessage title", "Playlist-Voting",
-            "Title shown in the server message overlay.");
-
-        _webToken = _config.Bind(
-            "Web API", "WebToken", "XXXXX-XXXXX-XXX-XXX-XXX",
-            "Your PlaylistVoting API token.");
-        _webApiUrl = _config.Bind(
-            "Web API", "WebApiURL", "https://yololurk.herokuapp.com/zeepkist/playlistvoting",
-            "URL of the PlaylistVoting API.");
-
-
-        AcceptableValueList<string> emoteChoices = new AcceptableValueList<string>(ZeepkistEmojis.GetEmojis().ToArray());
-
-        _winEmote = _config.Bind(
-            "Emotes", "Win emote", ":yannicsmile:",
-            new ConfigDescription("Emote shown when yes votes are leading.", emoteChoices));
-
-        _tieEmote = _config.Bind(
-            "Emotes", "Tie emote", ":yannics:",
-            new ConfigDescription("Emote shown when votes are tied.", emoteChoices));
-
-        _loseEmote = _config.Bind(
-            "Emotes", "Lose emote", ":yannicmegas:",
-            new ConfigDescription("Emote shown when no votes are leading.", emoteChoices));
-    }
-
     private void RegisterChatCommands()
     {
         ChatCommandApi.RegisterMixedChatCommand<VoteYes>();
         ChatCommandApi.RegisterMixedChatCommand<VoteNo>();
         ChatCommandApi.RegisterMixedChatCommand<VoteRemove>();
-        ChatCommandApi.RegisterLocalChatCommand<VoteReset>();
         ChatCommandApi.RegisterLocalChatCommand<VoteStart>();
         ChatCommandApi.RegisterLocalChatCommand<VoteStop>();
-
-        VotingEventBus.Hub.VoteResetRequested += () => _ = ResetVotesAsync();
-    }
-
-    private async Task LoadInitialLevelDataAsync()
-    {
-        try
-        {
-            CurrentLevelName = await VotingApiClient.GetCurrentLevelNameAsync();
-            CurrentLevelAuthor = await VotingApiClient.GetCurrentAuthorAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning($"Could not load initial level data: {ex.Message}");
-        }
     }
 }

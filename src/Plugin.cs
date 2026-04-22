@@ -10,22 +10,26 @@ public class Plugin : BaseUnityPlugin
 {
     private Harmony _harmony;
     private VotingManager _votingManager;
+    public static Plugin Instance { get; private set; }
 
     private void Awake()
     {
+        Instance = this;
         _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
         _harmony.PatchAll();
 
-        _votingManager = new VotingManager(Config, Logger);
-        _ = _votingManager.InitializeAsync();
+        VotingConfig.Init(Config);
+
+
+        _votingManager = gameObject.AddComponent<VotingManager>();
+        _votingManager.Initialize(Logger);
+        DontDestroyOnLoad(gameObject);
 
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} loaded.");
     }
-    
 
     private void OnDestroy()
     {
-        _votingManager?.Dispose();
         _harmony?.UnpatchSelf();
     }
 }
