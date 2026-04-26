@@ -1,10 +1,12 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using BepInEx.Logging;
 using PlaylistVoting.api;
 using PlaylistVoting.commands.local;
 using PlaylistVoting.commands.remote;
 using PlaylistVoting.misc;
+using Steamworks;
 using UnityEngine;
 using ZeepkistClient;
 using ZeepSDK.Chat;
@@ -14,7 +16,8 @@ namespace PlaylistVoting.core;
 
 public enum VotingState
 {
-    Inactive,
+    Disabled,
+    Idle,
     Active
 }
 
@@ -26,15 +29,16 @@ public class VotingManager : MonoBehaviour
     // ── Constants ─────────────────────────────────────────────────────────────
     private const float TimerIntervalSeconds = 5f;
     private const int VoteReminderThresholdSeconds = 30;
+    private readonly object _stateLock = new object();
     private bool _hasRemindedToVote;
 
     // ── Private fields ───────────────────────────────────────────────────────
     private ManualLogSource _logger;
     private int _noVotes;
     private float _pollTimer;
-    private VotingState _state = VotingState.Inactive;
+    private VotingState _state = VotingState.Disabled;
+    private CancellationTokenSource _stateCts;
 
-    private bool _voteStartRequested;
 
     private int _yesVotes;
     private ZeepkistLobbyStateListener _zeepkistLobbyStateListener;
@@ -63,16 +67,10 @@ public class VotingManager : MonoBehaviour
 
     private void Update()
     {
-        switch (_state)
+        // Periodic logic that doesn't fit well into async tasks
+        if (_state == VotingState.Active)
         {
-            case VotingState.Inactive:
-                UpdateInactive();
-                break;
-            case VotingState.Active:
-                UpdateActive();
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
+            UpdateActive();
         }
     }
 
@@ -99,51 +97,171 @@ public class VotingManager : MonoBehaviour
         RestController = new RestController();
 
         // Subscribe to events
-        VotingEventBus.Hub.VotingStarted+= OnVoteStartRequested;
+        VotingEventBus.Hub.VotingStarted += OnVoteStartRequested;
         VotingEventBus.Hub.VotingStopped += OnVoteStopRequested;
         VotingEventBus.Hub.PlayerVoted += OnPlayerVoted;
         VotingEventBus.Hub.ZeepkistLobbyStateChanged += OnZeepkistLobbyStateChanged;
+
+        // Start in Disabled state by default
+        _state = VotingState.Disabled;
     }
 
-    private void UpdateInactive()
+    private async Task LoginAsync(CancellationToken ct = default)
     {
-        if (_voteStartRequested && CurrentZeepkistLobbyState == ZeepkistLobbyState.Racing)
+        try
         {
-            _voteStartRequested = false;
-            StartVote();
+            _logger.LogInfo("Waiting for Steamworks to initialize...");
+            int retryCount = 0;
+            while (!SteamClient.IsValid && retryCount < 30)
+            {
+                await Task.Delay(1000, ct);
+                retryCount++;
+            }
+
+            if (!SteamClient.IsValid)
+            {
+                _logger.LogError("Steamworks failed to initialize in time. Login aborted.");
+                return;
+            }
+
+            _logger.LogInfo("Steamworks initialized. Fetching auth ticket...");
+
+            // Facepunch.Steamworks v2 verwendet NetIdentity
+            AuthTicket ticket = SteamUser.GetAuthSessionTicket(default);
+            if (ticket != null && ticket.Data != null)
+            {
+                string ticketHex = BitConverter.ToString(ticket.Data).Replace("-", "").ToLower();
+                bool success = await RestController.LoginWithSteamTicketAsync(ticketHex, ct);
+                if (success)
+                {
+                    _logger.LogInfo("Successfully logged in with Steam ticket.");
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to login with Steam ticket. API might be unreachable or token invalid.");
+                }
+            }
+            else
+            {
+                _logger.LogWarning("Failed to get Steam auth ticket. Ticket or Data is null.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInfo("LoginAsync cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error during Steam login: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
     private void UpdateActive()
     {
-        if (CurrentZeepkistLobbyState != ZeepkistLobbyState.Racing)
-        {
-            StopVote();
-            return;
-        }
-
         _pollTimer -= Time.deltaTime;
         if (_pollTimer <= 0)
         {
             _pollTimer = TimerIntervalSeconds;
-            _ = FetchAndDisplayVotesAsync();
+            _ = FetchAndDisplayVotesAsync(_stateCts?.Token ?? default);
         }
     }
 
     // ── State Transitions ────────────────────────────────────────────────────
 
-    private void StartVote()
+    public async Task TransitionToStateAsync(VotingState newState)
     {
-        _state = VotingState.Active;
-        _hasRemindedToVote = false;
-        _pollTimer = 0; // Trigger immediate poll
-        ToastNotification.Custom("Mod started", Color.black, Color.green);
+        CancellationToken ct;
+
+        lock (_stateLock)
+        {
+            if (_state == newState && newState != VotingState.Active)
+            {
+                return;
+            }
+
+            _logger.LogInfo($"Transitioning state: {_state} -> {newState}");
+
+            // Cancel previous state tasks
+            _stateCts?.Cancel();
+            _stateCts?.Dispose();
+            _stateCts = new CancellationTokenSource();
+            ct = _stateCts.Token;
+
+            // Exit previous state
+            OnExitState(_state);
+
+            _state = newState;
+        }
+
+        // Enter new state (Async part)
+        try
+        {
+            await OnEnterStateAsync(newState, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInfo($"State {newState} task was cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error entering state {newState}: {ex.Message}");
+        }
     }
 
-    private void StopVote()
+    private void OnExitState(VotingState state)
     {
-        _state = VotingState.Inactive;
-        ChatApi.SendMessage("/servermessage remove");
+        switch (state)
+        {
+            case VotingState.Disabled:
+                break;
+            case VotingState.Idle:
+                break;
+            case VotingState.Active:
+                ChatApi.SendMessage("/servermessage remove");
+                break;
+        }
+    }
+
+    private async Task OnEnterStateAsync(VotingState state, CancellationToken ct)
+    {
+        switch (state)
+        {
+            case VotingState.Disabled:
+                _logger.LogInfo("Mod is now Disabled.");
+                break;
+
+            case VotingState.Idle:
+                _logger.LogInfo("Mod is now Idle. Waiting for race start...");
+                // Ensure we are logged in
+                await EnsureLoggedInAsync(ct);
+                break;
+
+            case VotingState.Active:
+                _logger.LogInfo("Mod is now Active. Starting voting cycle...");
+                await EnsureLoggedInAsync(ct);
+                await ResetAndStartNewVotingAsync(ct);
+                break;
+        }
+    }
+
+    private async Task EnsureLoggedInAsync(CancellationToken ct)
+    {
+        // If we don't have a token, try to login
+        if (RestController != null && string.IsNullOrEmpty(RestController.GetSessionToken()))
+        {
+            await LoginAsync(ct);
+        }
+    }
+
+    private void StartVotingCycle()
+    {
+        _hasRemindedToVote = false;
+        _pollTimer = 0; // Trigger immediate poll
+    }
+
+    private void StopVotingCycle()
+    {
+        // Handled by OnExitState and state transition
     }
 
     // ── Event Handlers ───────────────────────────────────────────────────────
@@ -156,33 +274,34 @@ public class VotingManager : MonoBehaviour
             return;
         }
 
-        if (_state == VotingState.Active)
+        if (_state != VotingState.Disabled)
         {
             ToastNotification.Warning("Mod is already running.");
             return;
         }
 
-        if (CurrentZeepkistLobbyState != ZeepkistLobbyState.Racing)
-        {
-            _voteStartRequested = true;
-            ToastNotification.Custom("start pending.<br>Playlist Voting will immediately start next round!", Color.black, Color.yellow);
-            return;
-        }
-
         ToastNotification.Custom("Mod started", Color.black, Color.green);
-        StartVote();
+
+        if (CurrentZeepkistLobbyState == ZeepkistLobbyState.Racing)
+        {
+            _ = TransitionToStateAsync(VotingState.Active);
+        }
+        else
+        {
+            _ = TransitionToStateAsync(VotingState.Idle);
+        }
     }
 
     private void OnVoteStopRequested()
     {
-        if (_state == VotingState.Active)
+        if (_state != VotingState.Disabled)
         {
-            StopVote();
+            _ = TransitionToStateAsync(VotingState.Disabled);
             ToastNotification.Custom("stopped", Color.black, Color.red);
         }
         else
         {
-            ToastNotification.Warning("is not currently running.<br>Type '<#00ff00><b>/vote start<b/></color>' to start it");
+            ToastNotification.Warning("is not currently running.<br>Type '<#00ff00><b>/vote start</b></color>' to start it", 5f);
         }
     }
 
@@ -193,12 +312,12 @@ public class VotingManager : MonoBehaviour
             return;
         }
 
-        _ = HandleVoteAsync(steamId, votingType);
+        _ = HandleVoteAsync(steamId, votingType, _stateCts?.Token ?? default);
     }
 
-    private async Task HandleVoteAsync(ulong steamId, VotingType votingType)
+    private async Task HandleVoteAsync(ulong steamId, VotingType votingType, CancellationToken ct = default)
     {
-        VoteResult result = await RestController.SubmitVoteAsync(steamId, votingType);
+        VoteResult result = await RestController.SubmitVoteAsync(steamId, votingType, ct);
 
         if (result != null)
         {
@@ -211,29 +330,120 @@ public class VotingManager : MonoBehaviour
             };
 
             ZeepkistNetwork.SendCustomChatMessage(false, steamId, message, ServermessageTitle);
-            _ = FetchAndDisplayVotesAsync();
+            _ = FetchAndDisplayVotesAsync(ct);
         }
     }
 
-    private void OnZeepkistLobbyStateChanged(ZeepkistLobbyState phase)
+    private void OnZeepkistLobbyStateChanged(ZeepkistLobbyState zeepkistLobbyState)
     {
-        if (phase != ZeepkistLobbyState.Racing && _state == VotingState.Active)
+        if (_state == VotingState.Disabled)
         {
-            // End of round logic
-            _ = ResetVotesAsync(false);
-            StopVote();
+            return;
+        }
+
+        _logger.LogInfo($"Lobby state changed to: {zeepkistLobbyState}");
+
+        if (zeepkistLobbyState == ZeepkistLobbyState.Racing)
+        {
+            if (_state != VotingState.Active)
+            {
+                _ = TransitionToStateAsync(VotingState.Active);
+            }
+        }
+        else if (zeepkistLobbyState == ZeepkistLobbyState.NotInALobby)
+        {
+            // Optional: Disable or go Idle when leaving lobby
+            _ = TransitionToStateAsync(VotingState.Idle);
+        }
+        else
+        {
+            if (_state == VotingState.Active)
+            {
+                _ = TransitionToIdleWithResultsAsync();
+            }
+        }
+    }
+
+    private async Task TransitionToIdleWithResultsAsync()
+    {
+        try
+        {
+            // First end voting (using current state token)
+            await EndVotingAndShowResultsAsync(_stateCts?.Token ?? default);
+        }
+        finally
+        {
+            // Then transition to Idle
+            await TransitionToStateAsync(VotingState.Idle);
+        }
+    }
+
+    private async Task ResetAndStartNewVotingAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            if (PlayerManager.Instance?.currentMaster?.GlobalLevel != null)
+            {
+                CurrentLevelName = PlayerManager.Instance.currentMaster.GlobalLevel.Name;
+                CurrentLevelAuthor = PlayerManager.Instance.currentMaster.GlobalLevel.Author;
+            }
+
+            if (ZeepkistNetwork.CurrentLobby != null)
+            {
+                CurrentLevelUid = ZeepkistNetwork.CurrentLobby.LevelUID;
+                CurrentLevelWorkshopID = ZeepkistNetwork.CurrentLobby.WorkshopID;
+            }
+
+            bool success = await RestController.SetCurrentLevelAsync(CurrentLevelUid, CurrentLevelName, CurrentLevelAuthor,
+                CurrentLevelWorkshopID.ToString(), ct);
+
+            if (!success)
+            {
+                _logger.LogWarning("Failed to set current level on server.");
+            }
+
+            StartVotingCycle();
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInfo("ResetAndStartNewVotingAsync cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in ResetAndStartNewVotingAsync: {ex.Message}");
+        }
+    }
+
+    private async Task EndVotingAndShowResultsAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            string resetResult = await RestController.ResetVotesAsync(ct);
+
+            ZeepkistNetwork.SendCustomChatMessage(
+                true, 0,
+                $"<#f0f0f0>{resetResult}<br>----------------</color>",
+                ServermessageTitle);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInfo("EndVotingAndShowResultsAsync cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error in EndVotingAndShowResultsAsync: {ex.Message}");
         }
     }
 
     // ── Logic ────────────────────────────────────────────────────────────────
 
-    private async Task FetchAndDisplayVotesAsync()
+    private async Task FetchAndDisplayVotesAsync(CancellationToken ct = default)
     {
         try
         {
             SendVoteReminderIfNeeded();
 
-            VoteResult result = await RestController.FetchVoteTotalsAsync();
+            VoteResult result = await RestController.FetchVoteTotalsAsync(ct);
             if (result == null)
             {
                 return;
@@ -252,12 +462,13 @@ public class VotingManager : MonoBehaviour
                 $"/servermessage white 0 <align=\"left\"><size=\"30%\">{message}<br><#ffffff></size>" +
                 $"<size=\"20%\"><voffset=-0.5em>Type !y if you like the current level</voffset><br>Type !n if you don't");
         }
+        catch (OperationCanceledException)
+        {
+            // Normal when state changes
+        }
         catch (Exception ex)
         {
-            if (_logger != null)
-            {
-                _logger.LogError($"Error fetching votes: {ex.Message}");
-            }
+            _logger?.LogError($"Error fetching votes: {ex.Message}");
         }
     }
 
@@ -279,9 +490,9 @@ public class VotingManager : MonoBehaviour
         {
             ZeepkistNetwork.SendCustomChatMessage(
                 true, 0,
-                "<br><#f0f0f0>LAST CHANCE TO <b>VOTE</b>!<br>" +
+                "<br><#f0f0f0><u>LAST CHANCE TO <b>VOTE</b>!</u><br>" +
                 "Type <#00FF00><b>!y</b></color> to <b>keep</b> this level in the playlist<br>" +
-                "Type <#FF0000><b>!n</b></color> to remove it<br>----------------</color>",
+                "Type <#FF0000><b>!n</b></color> to remove it<br></color>",
                 ServermessageTitle);
 
             _hasRemindedToVote = true;
@@ -301,50 +512,6 @@ public class VotingManager : MonoBehaviour
                $"Votes: <#00aa00>{result.YesVotes}</color><#ffffff>/<#aa0000>{result.NoVotes}</color> (yes/no) (!y/!n) {emote}";
     }
 
-
-    public async Task ResetVotesAsync(bool printResults = true)
-    {
-        try
-        {
-            string resetResult = await RestController.ResetVotesAsync();
-
-            if (printResults)
-            {
-                ZeepkistNetwork.SendCustomChatMessage(
-                    true, 0,
-                    $"<#f0f0f0>{resetResult}<br>----------------</color>",
-                    ServermessageTitle);
-            }
-
-            if (PlayerManager.Instance?.currentMaster?.GlobalLevel != null)
-            {
-                CurrentLevelName = PlayerManager.Instance.currentMaster.GlobalLevel.Name;
-                CurrentLevelAuthor = PlayerManager.Instance.currentMaster.GlobalLevel.Author;
-            }
-
-            if (ZeepkistNetwork.CurrentLobby != null)
-            {
-                CurrentLevelUid = ZeepkistNetwork.CurrentLobby.LevelUID;
-                CurrentLevelWorkshopID = ZeepkistNetwork.CurrentLobby.WorkshopID;
-            }
-
-            bool success = await RestController.SetCurrentLevelAsync(CurrentLevelUid, CurrentLevelName, CurrentLevelAuthor, CurrentLevelWorkshopID.ToString());
-            if (!success)
-            {
-                ZeepkistNetwork.SendCustomChatMessage(
-                    true, 0,
-                    "<#ff6b6b>Error: Failed to update map data on the server. Please check your API token and connection.</color>",
-                    ServermessageTitle);
-            }
-        }
-        catch (Exception ex)
-        {
-            ZeepkistNetwork.SendCustomChatMessage(
-                true, 0,
-                $"<#ff6b6b>Error during vote reset: {ex.Message}<br>Please try again or contact an administrator.</color>",
-                ServermessageTitle);
-        }
-    }
 
     private void RegisterChatCommands()
     {

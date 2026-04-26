@@ -1,5 +1,4 @@
 using System;
-using PlaylistVoting.misc;
 
 namespace PlaylistVoting.core;
 
@@ -21,7 +20,6 @@ public interface IVotingEventHub
 
 public sealed class VotingEventHub : IVotingEventHub
 {
-
     public event Action<ulong, VotingType> PlayerVoted;
 
     public event Action VotingStarted;
@@ -37,5 +35,4 @@ public sealed class VotingEventHub : IVotingEventHub
 
     public void OnZeepkistLobbyStateChanged(ZeepkistLobbyState obj) => ZeepkistLobbyStateChanged?.Invoke(obj);
     public void OnVotingReset() => VotingReset?.Invoke();
-    
 }

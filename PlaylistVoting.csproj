@@ -37,6 +37,17 @@
         <Reference Include="Microsoft.CSharp"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <Compile Remove="src\Commands\Local\VoteStartCommand.cs"/>
+        <Compile Remove="src\Services\PlaylistService.cs"/>
+        <Compile Remove="src\Commands\Remote\VoteRemoveCommand.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="src\Commands\Remote\"/>
+        <Folder Include="src\Services\"/>
+    </ItemGroup>
+
 
     <!-- Post-Build Scripts -->
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
