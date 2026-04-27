@@ -1,12 +1,12 @@
 using System;
-using PlaylistVoting.core;
+using PlaylistVoting.Core.Controllers;
 
-namespace PlaylistVoting.commands.local;
+namespace PlaylistVoting.Commands.Local;
 
 public class VoteStop : BaseLocalVoteCommand
 {
     public override string Prefix => "/";
     public override string Command => "vote stop";
     public override string Description => "[Playlist Voting] Stops the Mod";
-    protected override Action TriggerEvent => VotingEventBus.Hub.OnVotingStopped;
+    protected override Action TriggerEvent => VotingController.Instance.OnVoteStopRequested;
 }

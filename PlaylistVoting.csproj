@@ -25,6 +25,7 @@
         <PackageReference Include="BepInEx.Core" Version="5.*"/>
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
         <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0"/>
+        <PackageReference Include="Websocket.Client" Version="4.7.0"/>
         <PackageReference Include="Zeepkist.GameLibs" Version="17.32.1912"/>
         <PackageReference Include="ZeepSDK" Version="2.2.0"/>
     </ItemGroup>
@@ -51,18 +52,68 @@
 
     <!-- Post-Build Scripts -->
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+        <Message Importance="high" Text="PostBuild starting. TargetDir: $(TargetDir)"/>
+        <PropertyGroup>
+            <PluginFolder>C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)</PluginFolder>
+        </PropertyGroup>
+
         <!-- Delete the plugin directory if it exists -->
-        <RemoveDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)"/>
+        <RemoveDir Directories="$(PluginFolder)"/>
 
         <!-- Create the plugin directory -->
-        <MakeDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)"/>
+        <MakeDir Directories="$(PluginFolder)"/>
 
-        <!-- Copy DLL to the plugin directory -->
-        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
-        <!-- Copy assets folder recursively -->
-        <!--        <Exec Command="xcopy /E /I /Y &quot;$(ProjectDir)assets&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\assets&quot;"/>-->
+        <!-- Copy the main plugin DLL -->
+        <Copy SourceFiles="$(TargetDir)$(ProjectName).dll" DestinationFiles="$(PluginFolder)\$(ProjectName)-$(Version).dll"/>
+
+        <!-- Copy dependencies from NuGet packages -->
+        <ItemGroup>
+            <DependencyFiles Include="$(TargetDir)*.dll"/>
+            <!-- Remove the main DLL since we already copied it with version name -->
+            <DependencyFiles Remove="$(TargetDir)$(ProjectName).dll"/>
+            
+            <!-- Remove known game/unity DLLs to keep the plugin small -->
+            <DependencyFiles Remove="$(TargetDir)UnityEngine*.dll"/>
+            <DependencyFiles Remove="$(TargetDir)Unity.*.dll"/>
+            <DependencyFiles Remove="$(TargetDir)Assembly-CSharp.dll"/>
+            <DependencyFiles Remove="$(TargetDir)Zeepkist.dll"/>
+            <DependencyFiles Remove="$(TargetDir)ZeepSDK.dll"/>
+            <DependencyFiles Remove="$(TargetDir)BepInEx*.dll"/>
+            <DependencyFiles Remove="$(TargetDir)Mono.*.dll"/>
+            <DependencyFiles Remove="$(TargetDir)mscorlib.dll"/>
+            <DependencyFiles Remove="$(TargetDir)netstandard.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Core.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Data*.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Drawing.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Xml*.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Numerics.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Configuration.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Security.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Transactions.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.ServiceModel.Internals.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.Runtime.Serialization.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.EnterpriseServices.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.ComponentModel.Composition.dll"/>
+            <DependencyFiles Remove="$(TargetDir)System.IO.Compression.FileSystem.dll"/>
+            <DependencyFiles Remove="$(TargetDir)Microsoft.CSharp.dll"/>
+            
+            <!-- Explicitly keep those we know we added via NuGet that might have been removed by generic patterns if we had any -->
+            <ToKeep Include="$(TargetDir)System.Reactive.dll"/>
+            <ToKeep Include="$(TargetDir)System.Threading.Channels.dll"/>
+            <ToKeep Include="$(TargetDir)System.Threading.Tasks.Extensions.dll"/>
+            <ToKeep Include="$(TargetDir)System.ValueTuple.dll"/>
+            <ToKeep Include="$(TargetDir)System.Runtime.CompilerServices.Unsafe.dll"/>
+            <ToKeep Include="$(TargetDir)System.Buffers.dll"/>
+            <ToKeep Include="$(TargetDir)System.Memory.dll"/>
+            <ToKeep Include="$(TargetDir)System.Numerics.Vectors.dll"/>
+            <ToKeep Include="$(TargetDir)System.Net.Http.Formatting.dll"/>
+        </ItemGroup>
+
+        <Copy SourceFiles="@(DependencyFiles);@(ToKeep)" DestinationFolder="$(PluginFolder)" SkipUnchangedFiles="true" ContinueOnError="true"/>
+
         <!-- Create a zip file from the directory -->
-        <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\*&apos;&quot; -DestinationPath &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip&apos;&quot; -Force&quot;"/>
+        <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;'$(PluginFolder)\*'&quot; -DestinationPath &quot;'$(PluginFolder)-$(Version).zip'&quot; -Force&quot;"/>
     </Target>
 
 

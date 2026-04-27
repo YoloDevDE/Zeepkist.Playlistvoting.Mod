@@ -1,6 +1,7 @@
 ﻿using BepInEx;
 using HarmonyLib;
-using PlaylistVoting.core;
+using PlaylistVoting.Core.Config;
+using PlaylistVoting.Core.Controllers;
 
 namespace PlaylistVoting;
 
@@ -9,7 +10,7 @@ namespace PlaylistVoting;
 public class Plugin : BaseUnityPlugin
 {
     private Harmony _harmony;
-    private VotingManager _votingManager;
+    private VotingController _votingManager;
     public static Plugin Instance { get; private set; }
 
     private void Awake()
@@ -21,7 +22,7 @@ public class Plugin : BaseUnityPlugin
         VotingConfig.Init(Config);
 
 
-        _votingManager = gameObject.AddComponent<VotingManager>();
+        _votingManager = gameObject.AddComponent<VotingController>();
         _votingManager.Initialize(Logger);
         DontDestroyOnLoad(gameObject);
 

@@ -1,4 +1,6 @@
-namespace PlaylistVoting.commands.remote;
+using PlaylistVoting.Core.Models;
+
+namespace PlaylistVoting.Commands.Remote;
 
 public class VoteYes : BaseVoteCommand
 {

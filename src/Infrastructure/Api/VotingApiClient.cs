@@ -2,39 +2,54 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using PlaylistVoting.core;
+using PlaylistVoting.Core.Config;
+using PlaylistVoting.Core.Models;
 using ZeepkistClient;
 
-namespace PlaylistVoting.api;
+namespace PlaylistVoting.Infrastructure.Api;
 
-public class RestController
+public class VotingApiClient
 {
     private static readonly HttpClient HttpClient = new HttpClient();
     private static string _sessionToken;
+    private static string _userId;
 
     private static string Token => !string.IsNullOrEmpty(_sessionToken) ? _sessionToken : VotingConfig.Instance.WebToken;
     private static string BaseUrl => VotingConfig.Instance.WebApiUrl;
 
     public string GetSessionToken() => _sessionToken;
+    public string GetUserId() => _userId;
 
     public async Task<bool> LoginWithSteamTicketAsync(string ticketHex, CancellationToken ct = default)
     {
-        string url = $"{BaseUrl}/login/steam";
-        FormUrlEncodedContent content = new FormUrlEncodedContent(new[]
+        string authBaseUrl = BaseUrl;
+        if (authBaseUrl.EndsWith("/playlistvoting"))
         {
-            new KeyValuePair<string, string>("ticket", ticketHex)
-        });
+            authBaseUrl = authBaseUrl.Substring(0, authBaseUrl.Length - "/playlistvoting".Length);
+        }
+
+        string url = $"{authBaseUrl}/auth/steam/ticket";
+
+        StringContent content = new StringContent(ticketHex, Encoding.UTF8, "text/plain");
 
         try
         {
             HttpResponseMessage response = await HttpClient.PostAsync(url, content, ct);
             if (response.IsSuccessStatusCode)
             {
-                _sessionToken = await response.Content.ReadAsStringAsync();
-                return true;
+                string json = await response.Content.ReadAsStringAsync();
+                SteamLoginResponse loginResponse = JsonConvert.DeserializeObject<SteamLoginResponse>(json);
+                if (loginResponse != null && !string.IsNullOrEmpty(loginResponse.Token))
+                {
+                    _sessionToken = loginResponse.Token;
+                    // Prefer steamId if available, fallback to internal id
+                    _userId = !string.IsNullOrEmpty(loginResponse.SteamId) ? loginResponse.SteamId : loginResponse.Id;
+                    return true;
+                }
             }
         }
         catch (Exception)
@@ -45,17 +60,13 @@ public class RestController
         return false;
     }
 
-    public async Task<string> GetCurrentLevelNameAsync(CancellationToken ct = default) => await GetAsync($"{BaseUrl}/currentLevel/name", ct);
-
-    public async Task<string> GetCurrentAuthorAsync(CancellationToken ct = default) => await GetAsync($"{BaseUrl}/currentLevel/author", ct);
-
-    public async Task<VoteResult> FetchVoteTotalsAsync(CancellationToken ct = default)
+    public async Task<VotingResultResponse> FetchVoteTotalsAsync(CancellationToken ct = default)
     {
-        string content = await GetAsync($"{BaseUrl}/result?result=TOTAL", ct);
-        return ParseVoteResult(content);
+        string content = await GetAsync($"{BaseUrl}/result", ct);
+        return ParseVotingResult(content);
     }
 
-    public async Task<VoteResult> SubmitVoteAsync(ulong playerId, VotingType votingType, CancellationToken ct = default)
+    public async Task<VotingResultResponse> SubmitVoteAsync(ulong playerId, VotingType votingType, CancellationToken ct = default)
     {
         string username = TryGetPlayerName(playerId);
         string vote = GetVotingTypeAsString(votingType);
@@ -66,7 +77,14 @@ public class RestController
                                         $"username={username}&" +
                                         $"platform=STEAM&" +
                                         $"vote={vote}", ct);
-        return ParseVoteResult(content);
+
+        // The /vote endpoint in the new API returns a string message, not the full result.
+        // We might need to fetch the result separately if we want updated totals immediately,
+        // but with WebSockets, we will get it anyway.
+        // For now, let's just return null or fetch it.
+        // The original code expected a VoteResult here.
+
+        return await FetchVoteTotalsAsync(ct);
     }
 
     public async Task<bool> SetCurrentLevelAsync(string uid, string levelName, string author, string workshopID, CancellationToken ct = default)
@@ -90,6 +108,23 @@ public class RestController
 
     private string TryGetPlayerName(ulong playerId) => ZeepkistNetwork.TryGetPlayer(playerId, out ZeepkistNetworkPlayer player) ? player.Username : playerId.ToString();
 
+    private static VotingResultResponse ParseVotingResult(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonConvert.DeserializeObject<VotingResultResponse>(content);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     private static VoteResult ParseVoteResult(string content)
     {
         if (string.IsNullOrWhiteSpace(content))
@@ -99,12 +134,10 @@ public class RestController
 
         try
         {
-            // If it's JSON: {"YesVotes": 10, "NoVotes": 5, "AbstainVotes": 2}
             return JsonConvert.DeserializeObject<VoteResult>(content) ?? new VoteResult(0, 0, 0);
         }
         catch (Exception)
         {
-            // Fallback for non-JSON or other formats if needed
             return new VoteResult(0, 0, 0);
         }
     }
@@ -140,5 +173,12 @@ public class RestController
             VotingType.Abstain => "ABSTAIN",
             _ => throw new ArgumentException("Invalid voting type", nameof(votingType))
         };
+    }
+
+    private class SteamLoginResponse
+    {
+        [JsonProperty("token")] public string Token { get; set; }
+        [JsonProperty("id")] public string Id { get; set; }
+        [JsonProperty("steamId")] public string SteamId { get; set; }
     }
 }
