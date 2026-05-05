@@ -1,7 +1,6 @@
 using System;
 using System.Net;
 using System.Net.WebSockets;
-using System.Threading;
 using System.Threading.Tasks;
 using BepInEx.Logging;
 using Newtonsoft.Json;
@@ -41,6 +40,11 @@ public class VotingWebSocketClient : IDisposable
         // Spring STOMP usually upgrades this directly.
         _baseUrl += "ws-dashboard";
 
+        if (!string.IsNullOrEmpty(token))
+        {
+            _baseUrl += "?token=" + Uri.EscapeDataString(token);
+        }
+
         _hostId = hostId;
         _token = token;
         _logger = logger;
@@ -56,7 +60,7 @@ public class VotingWebSocketClient : IDisposable
     public event Action<VotingResultResponse> OnResultReceived;
     public event Action OnDisconnected;
 
-    public async Task ConnectAsync(CancellationToken ct)
+    public async Task ConnectAsync()
     {
         if (_client != null)
         {
@@ -142,6 +146,7 @@ public class VotingWebSocketClient : IDisposable
                          "accept-version:1.1,1.2\r\n" +
                          "heart-beat:0,0\r\n" +
                          "Authorization:Bearer " + _token + "\r\n" +
+                         "token:" + _token + "\r\n" +
                          "\r\n\0";
         await SendStringAsync(connect);
     }
@@ -154,6 +159,21 @@ public class VotingWebSocketClient : IDisposable
                            "ack:auto\r\n" +
                            "\r\n\0";
         await SendStringAsync(subscribe);
+    }
+
+    public void SendTimer(string time)
+    {
+        if (_client == null || !_client.IsRunning)
+        {
+            return;
+        }
+
+        string frame = "SEND\r\n" +
+                       "destination:/app/timer\r\n" +
+                       "content-type:application/json\r\n" +
+                       "\r\n" +
+                       "\"" + time + "\"\0";
+        _client.Send(frame);
     }
 
     private async Task SendStringAsync(string data)
@@ -175,12 +195,12 @@ public class VotingWebSocketClient : IDisposable
         if (message.StartsWith("MESSAGE"))
         {
             _logger.LogDebug($"STOMP Message received: {message}");
-            int bodyStartIndex = message.IndexOf("\n\n");
+            int bodyStartIndex = message.IndexOf("\n\n", StringComparison.Ordinal);
             int bodyOffset = 2;
 
             if (bodyStartIndex == -1)
             {
-                bodyStartIndex = message.IndexOf("\r\n\r\n");
+                bodyStartIndex = message.IndexOf("\r\n\r\n", StringComparison.Ordinal);
                 bodyOffset = 4;
             }
 

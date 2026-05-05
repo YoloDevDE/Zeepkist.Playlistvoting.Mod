@@ -5,120 +5,80 @@
         <TargetFramework>net472</TargetFramework>
         <Description>Automation for voting levels in Zeepkist</Description>
         <Version>2.17.0</Version>
+
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
+
+        <PackageId>yolobolo.playlistvoting</PackageId>
+        <Authors>Hi Im Yolo</Authors>
+        <Title>Playlist Voting</Title>
+        <Product>PlaylistVoting</Product>
+
+        <ImplicitUsings>disable</ImplicitUsings>
+
         <RestoreAdditionalProjectSources>
             https://api.nuget.org/v3/index.json;
             https://nuget.bepinex.dev/v3/index.json;
             https://nuget.samboy.dev/v3/index.json
         </RestoreAdditionalProjectSources>
-        <Authors>Hi Im Yolo</Authors>
-        <PackageId>yolobolo.playlistvoting</PackageId>
-        <ImplicitUsings>disable</ImplicitUsings>
-        <Title>Playlist Voting</Title>
-        <Product>PlaylistVoting</Product>
+
+        <!-- Required for file:line stack traces -->
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>portable</DebugType>
+        <Optimize Condition="'$(Configuration)'=='Debug'">false</Optimize>
     </PropertyGroup>
 
     <!-- Package References -->
     <ItemGroup>
-        <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
+        <PackageReference Include="BepInEx.Analyzers" Version="1.*"/>
         <PackageReference Include="BepInEx.Core" Version="5.*"/>
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
-        <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0"/>
+        <PackageReference Include="Lombok.NET" Version="2.4.1"/>
         <PackageReference Include="Websocket.Client" Version="4.7.0"/>
+        <PackageReference Include="YoloDev.Utils" Version="1.1.1"/>
         <PackageReference Include="Zeepkist.GameLibs" Version="17.32.1912"/>
         <PackageReference Include="ZeepSDK" Version="2.2.0"/>
+
+        <!-- Costura / Fody (dependency embedding) -->
+        <PackageReference Include="Fody" Version="6.9.3"/>
+        <PackageReference Include="Costura.Fody" Version="6.1.0"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
-        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3"/>
     </ItemGroup>
 
     <ItemGroup>
         <Reference Include="Microsoft.CSharp"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <Compile Remove="src\Commands\Local\VoteStartCommand.cs"/>
-        <Compile Remove="src\Services\PlaylistService.cs"/>
-        <Compile Remove="src\Commands\Remote\VoteRemoveCommand.cs"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Folder Include="src\Commands\Remote\"/>
-        <Folder Include="src\Services\"/>
-    </ItemGroup>
-
 
     <!-- Post-Build Scripts -->
-    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-        <Message Importance="high" Text="PostBuild starting. TargetDir: $(TargetDir)"/>
+    <Target Name="PostBuild" AfterTargets="Build">
         <PropertyGroup>
-            <PluginFolder>C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)</PluginFolder>
+            <PluginDir>C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)</PluginDir>
+            <ZipPath>C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip</ZipPath>
         </PropertyGroup>
 
-        <!-- Delete the plugin directory if it exists -->
-        <RemoveDir Directories="$(PluginFolder)"/>
+        <!-- Recreate plugin folder -->
+        <RemoveDir Directories="$(PluginDir)"/>
+        <MakeDir Directories="$(PluginDir)"/>
 
-        <!-- Create the plugin directory -->
-        <MakeDir Directories="$(PluginFolder)"/>
+        <!-- Copy DLL + PDB (symbols) so BepInEx can show file:line -->
+        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;$(PluginDir)\$(ProjectName).dll&quot;"/>
+        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).pdb&quot; &quot;$(PluginDir)\$(ProjectName).pdb&quot;"/>
 
-        <!-- Copy the main plugin DLL -->
-        <Copy SourceFiles="$(TargetDir)$(ProjectName).dll" DestinationFiles="$(PluginFolder)\$(ProjectName)-$(Version).dll"/>
-
-        <!-- Copy dependencies from NuGet packages -->
-        <ItemGroup>
-            <DependencyFiles Include="$(TargetDir)*.dll"/>
-            <!-- Remove the main DLL since we already copied it with version name -->
-            <DependencyFiles Remove="$(TargetDir)$(ProjectName).dll"/>
-            
-            <!-- Remove known game/unity DLLs to keep the plugin small -->
-            <DependencyFiles Remove="$(TargetDir)UnityEngine*.dll"/>
-            <DependencyFiles Remove="$(TargetDir)Unity.*.dll"/>
-            <DependencyFiles Remove="$(TargetDir)Assembly-CSharp.dll"/>
-            <DependencyFiles Remove="$(TargetDir)Zeepkist.dll"/>
-            <DependencyFiles Remove="$(TargetDir)ZeepSDK.dll"/>
-            <DependencyFiles Remove="$(TargetDir)BepInEx*.dll"/>
-            <DependencyFiles Remove="$(TargetDir)Mono.*.dll"/>
-            <DependencyFiles Remove="$(TargetDir)mscorlib.dll"/>
-            <DependencyFiles Remove="$(TargetDir)netstandard.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Core.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Data*.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Drawing.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Xml*.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Numerics.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Configuration.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Security.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Transactions.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.ServiceModel.Internals.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.Runtime.Serialization.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.EnterpriseServices.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.ComponentModel.Composition.dll"/>
-            <DependencyFiles Remove="$(TargetDir)System.IO.Compression.FileSystem.dll"/>
-            <DependencyFiles Remove="$(TargetDir)Microsoft.CSharp.dll"/>
-            
-            <!-- Explicitly keep those we know we added via NuGet that might have been removed by generic patterns if we had any -->
-            <ToKeep Include="$(TargetDir)System.Reactive.dll"/>
-            <ToKeep Include="$(TargetDir)System.Threading.Channels.dll"/>
-            <ToKeep Include="$(TargetDir)System.Threading.Tasks.Extensions.dll"/>
-            <ToKeep Include="$(TargetDir)System.ValueTuple.dll"/>
-            <ToKeep Include="$(TargetDir)System.Runtime.CompilerServices.Unsafe.dll"/>
-            <ToKeep Include="$(TargetDir)System.Buffers.dll"/>
-            <ToKeep Include="$(TargetDir)System.Memory.dll"/>
-            <ToKeep Include="$(TargetDir)System.Numerics.Vectors.dll"/>
-            <ToKeep Include="$(TargetDir)System.Net.Http.Formatting.dll"/>
-        </ItemGroup>
-
-        <Copy SourceFiles="@(DependencyFiles);@(ToKeep)" DestinationFolder="$(PluginFolder)" SkipUnchangedFiles="true" ContinueOnError="true"/>
-
-        <!-- Create a zip file from the directory -->
-        <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;'$(PluginFolder)\*'&quot; -DestinationPath &quot;'$(PluginFolder)-$(Version).zip'&quot; -Force&quot;"/>
+        <!-- Zip it -->
+        <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;&apos;$(PluginDir)\*&apos;&quot; -DestinationPath &quot;&apos;$(ZipPath)&apos;&quot; -Force&quot;"/>
     </Target>
 
-
-    <!-- Enable debug logging -->
-    <PropertyGroup>
+    <!-- Enable debug logging symbols (compile-time) -->
+    <PropertyGroup Condition="'$(Configuration)'=='Debug'">
         <DefineConstants>DEBUG;TRACE</DefineConstants>
     </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <DefineConstants>TRACE</DefineConstants>
+    </PropertyGroup>
+
 </Project>
