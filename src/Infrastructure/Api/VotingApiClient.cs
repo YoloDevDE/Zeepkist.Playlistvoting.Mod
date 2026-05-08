@@ -73,9 +73,9 @@ public class VotingApiClient
         return JsonConvert.DeserializeObject<PlaylistSessionInfo>(content);
     }
 
-    public async Task<PlaylistSessionInfo> GetLatestResumableSessionAsync()
+    public async Task<PlaylistSessionInfo> GetLatestActiveSessionAsync()
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/latest-resumable?token={Uri.EscapeDataString(GetSessionToken())}");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/latest-active?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
         HttpResponseMessage response = await HttpClient.SendAsync(request);
@@ -90,10 +90,13 @@ public class VotingApiClient
 
     public async Task<bool> SetPlaylistModeAsync(bool enabled)
     {
-        HttpRequestMessage request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{BaseUrl}/sessions/active?token={Uri.EscapeDataString(GetSessionToken())}");
+        HttpRequestMessage request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{BaseUrl}/sessions/active/playlist-mode?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        request.Content = new StringContent(JsonConvert.SerializeObject(new { playlistModeEnabled = enabled }), Encoding.UTF8, "application/json");
+        request.Content = new StringContent(JsonConvert.SerializeObject(new
+        {
+            enabled
+        }), Encoding.UTF8, "application/json");
 
         HttpResponseMessage response = await HttpClient.SendAsync(request);
         return response.IsSuccessStatusCode;
@@ -101,7 +104,7 @@ public class VotingApiClient
 
     public async Task<List<LevelMetadata>> GetToBeVotedPlaylistAsync()
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/playlist/toBeVoted?token={Uri.EscapeDataString(GetSessionToken())}");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/playlist/to-be-voted?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
         HttpResponseMessage response = await HttpClient.SendAsync(request);
@@ -129,9 +132,9 @@ public class VotingApiClient
         return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
     }
 
-    public async Task<bool> FinalizeCurrentLevelAsync()
+    public async Task<bool> FinalizeLevelAsync(string levelUid)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/sessions/active/level/finalize?token={Uri.EscapeDataString(GetSessionToken())}");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/sessions/active/levels/{Uri.EscapeDataString(levelUid)}/finalize?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
         HttpResponseMessage response = await HttpClient.SendAsync(request);
@@ -140,11 +143,26 @@ public class VotingApiClient
 
     public async Task<bool> ResetVotesForLevelAsync(string levelUid)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/sessions/active/level/votes?levelUid={Uri.EscapeDataString(levelUid)}&token={Uri.EscapeDataString(GetSessionToken())}");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/sessions/active/levels/{Uri.EscapeDataString(levelUid)}/votes?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
         HttpResponseMessage response = await HttpClient.SendAsync(request);
         return response.IsSuccessStatusCode;
+    }
+
+    public async Task<VotingResultResponse> GetLevelResultAsync(string levelUid)
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/levels/{Uri.EscapeDataString(levelUid)}/result?token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        string content = await response.Content.ReadAsStringAsync();
+        return ParseVotingResult(content);
     }
 
     public async Task<VotingResultResponse> FetchVoteTotalsAsync()
@@ -170,6 +188,17 @@ public class VotingApiClient
         await HttpClient.SendAsync(request);
 
         return await FetchVoteTotalsAsync();
+    }
+
+    public async Task<bool> UpdatePlaylistAsync(List<LevelMetadata> levels)
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/sessions/active/playlist?token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        request.Content = new StringContent(JsonConvert.SerializeObject(levels), Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<bool> SetCurrentLevelAsync(LevelMetadata level, bool includeAbstain)

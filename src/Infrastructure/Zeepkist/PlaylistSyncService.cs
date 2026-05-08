@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using PlaylistVoting.Core.Models;
+using ZeepkistClient;
+using ZeepkistNetworking;
 
 namespace PlaylistVoting.Infrastructure.Zeepkist;
 
@@ -13,9 +15,11 @@ public class PlaylistSyncService
 
         bool areEqual = localUids.SetEquals(onlineUids);
 
+        List<OnlineZeeplevel> currentLobbyPlaylist = ZeepkistNetwork.CurrentLobby.Playlist;
         return new PlaylistComparisonResult
         {
             AreEqual = areEqual,
+
             LocalOnly = local.Where(l => !onlineUids.Contains(l.Uid)).ToList(),
             OnlineOnly = online.Where(l => !localUids.Contains(l.Uid)).ToList()
         };

@@ -14,7 +14,7 @@ public class PlaylistConflictState : SessionState
 {
     private readonly List<LevelMetadata> _localLevels;
     private readonly List<LevelMetadata> _onlineLevels;
-    private readonly PlaylistFileService _playlistFileService;
+    private readonly ZeepkistPlaylistService _playlistService;
     private readonly PlaylistSyncService _syncService;
 
     public PlaylistConflictState(
@@ -25,7 +25,7 @@ public class PlaylistConflictState : SessionState
     {
         _localLevels = localLevels;
         _onlineLevels = onlineLevels;
-        _playlistFileService = new PlaylistFileService(controller.Logger);
+        _playlistService = new ZeepkistPlaylistService(controller.Logger);
         _syncService = new PlaylistSyncService();
     }
 
@@ -51,29 +51,34 @@ public class PlaylistConflictState : SessionState
 
     public override void OnUseLocalRequested()
     {
+        ToastNotification.Info("Using local playlist...");
         List<LevelMetadata> levels = _syncService.Deduplicate(_localLevels);
-        _ = FinishConflictAsync(levels);
+        _ = FinishConflictAsync(levels, true);
     }
 
     public override void OnUseOnlineRequested()
     {
+        ToastNotification.Info("Using online playlist...");
         List<LevelMetadata> levels = _syncService.Deduplicate(_onlineLevels);
-        _ = FinishConflictAsync(levels);
+        _ = FinishConflictAsync(levels, false);
     }
 
     public override void OnMergeRequested()
     {
+        ToastNotification.Info("Merging local and online playlists...");
         List<LevelMetadata> levels = _syncService.Merge(_localLevels, _onlineLevels);
-        _ = FinishConflictAsync(levels);
+        _ = FinishConflictAsync(levels, true);
     }
 
-    private async Task FinishConflictAsync(List<LevelMetadata> levels)
+    private async Task FinishConflictAsync(List<LevelMetadata> levels, bool upload)
     {
-        string playlistName = $"{Session.DisplayName}-toBeVoted";
-        _playlistFileService.SavePlaylist(playlistName, levels);
+        if (upload)
+        {
+            await Controller.BackendService.UpdatePlaylistAsync(levels);
+        }
 
-        // TODO: Update online playlist if use-local or merge was chosen?
-        // The issue says: "Replace online playlist with local playlist"
+        string playlistName = $"{Session.DisplayName}-toBeVoted";
+        _playlistService.SavePlaylist(playlistName, levels);
 
         Controller.TransitionTo(new PlaylistVotingActiveState(Controller, Session, levels));
     }

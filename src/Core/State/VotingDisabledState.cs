@@ -9,9 +9,7 @@ namespace PlaylistVoting.Core.State;
 
 public class VotingDisabledState : VotingStateBase
 {
-    public VotingDisabledState(VotingController controller) : base(controller)
-    {
-    }
+    public VotingDisabledState(VotingController controller) : base(controller) { }
 
     public override void OnVoteStartRequested()
     {

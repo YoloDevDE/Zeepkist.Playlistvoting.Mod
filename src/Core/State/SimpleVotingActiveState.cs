@@ -3,7 +3,6 @@ using PlaylistVoting.Core.Controllers;
 using PlaylistVoting.Core.Models;
 using PlaylistVoting.Core.State.Abstractions;
 using PlaylistVoting.Infrastructure.Zeepkist;
-using YoloDev.Zeepkist;
 using ZeepkistClient;
 
 namespace PlaylistVoting.Core.State;
@@ -29,9 +28,7 @@ public class SimpleVotingActiveState : RunningState
         RefreshDisplay();
     }
 
-    protected override void OnRunningExit()
-    {
-    }
+    protected override void OnRunningExit() { }
 
     public override void OnUpdate()
     {
@@ -64,7 +61,7 @@ public class SimpleVotingActiveState : RunningState
         // 1. Broadcast result for the level that just finished
         if (_currentLevel != null)
         {
-            VotingResultResponse result = await Controller.BackendService.FetchVotesAsync();
+            VotingResultResponse result = await Controller.BackendService.GetLevelResultAsync(_currentLevel.Uid);
             if (result != null)
             {
                 _broadcaster.BroadcastResult(_currentLevel, result.Votes);

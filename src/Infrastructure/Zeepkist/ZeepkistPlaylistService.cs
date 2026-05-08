@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using BepInEx.Logging;
 using Newtonsoft.Json;
+using PlaylistVoting.Core.Models;
+using ZeepkistClient;
 using ZeepkistNetworking;
 using ZeepSDK.Playlist;
 
@@ -17,6 +19,91 @@ public class ZeepkistPlaylistService
     public ZeepkistPlaylistService(ManualLogSource logger)
     {
         _logger = logger;
+    }
+
+    public void SavePlaylist(string name, List<OnlineZeeplevelDto> levels, int roundLength = 360, bool shuffle = false)
+    {
+        PlaylistSaveJSON playlistSaveJson = PlaylistApi.CreatePlaylist(name);
+        IPlaylistEditor playlistEditor = playlistSaveJson.CreateEditor();
+
+        playlistEditor.Shuffle = shuffle;
+        playlistEditor.RoundLength = roundLength;
+
+        foreach (OnlineZeeplevelDto level in levels)
+        {
+            OnlineZeeplevel onlineLevel = new OnlineZeeplevel
+            {
+                UID = level.UID,
+                Name = level.Name,
+                Author = level.Author,
+                WorkshopID = level.WorkshopID,
+                Collaborators = level.Collaborators,
+                OverrideAuthorName = level.OverrideAuthorName,
+                played = level.played
+            };
+            playlistEditor.AddLevel(onlineLevel);
+        }
+
+        playlistEditor.Save();
+    }
+
+    public void SavePlaylist(string name, List<LevelMetadata> levels, int roundLength = 360, bool shuffle = false)
+    {
+        SavePlaylist(name, levels.Select(l => new OnlineZeeplevelDto
+        {
+            UID = l.Uid,
+            Name = l.Name,
+            Author = l.Author,
+            WorkshopID = l.WorkshopId ?? 0
+        }).ToList(), roundLength, shuffle);
+    }
+
+    public List<OnlineZeeplevelDto> LoadLocalPlaylist(string name)
+    {
+        if (!PlaylistApi.Exists(name))
+        {
+            return new List<OnlineZeeplevelDto>();
+        }
+
+        PlaylistSaveJSON playlist = PlaylistApi.GetPlaylist(name);
+        return playlist.levels.Select(l => new OnlineZeeplevelDto
+        {
+            UID = l.UID,
+            Name = l.Name,
+            Author = l.Author,
+            WorkshopID = l.WorkshopID,
+            Collaborators = l.Collaborators,
+            OverrideAuthorName = l.OverrideAuthorName,
+            played = l.played
+        }).ToList();
+    }
+
+    public List<LevelMetadata> LoadLocalPlaylistAsMetadata(string name)
+    {
+        return LoadLocalPlaylist(name).Select(l => new LevelMetadata
+        {
+            Uid = l.UID,
+            Name = l.Name,
+            Author = l.Author,
+            WorkshopId = l.WorkshopID
+        }).ToList();
+    }
+
+    public List<LevelMetadata> GetCurrentZeepkistPlaylist()
+    {
+        if (ZeepkistNetwork.CurrentLobby == null || ZeepkistNetwork.CurrentLobby.Playlist == null)
+        {
+            _logger.LogWarning("GetCurrentZeepkistPlaylist: No active lobby or playlist found.");
+            return new List<LevelMetadata>();
+        }
+
+        return ZeepkistNetwork.CurrentLobby.Playlist.Select(l => new LevelMetadata
+        {
+            Uid = l.UID,
+            Name = l.Name,
+            Author = l.Author,
+            WorkshopId = l.WorkshopID
+        }).ToList();
     }
 
     public void CreatePlaylist(
@@ -60,19 +147,15 @@ public class ZeepkistPlaylistService
 
     public void RemoveLevelFromPlaylist(LevelScriptableObject level, string playlistName)
     {
-        if (!PlaylistApi.Exists(playlistName))
-        {
-            _logger.LogError($"Playlist '{playlistName}' does not exist.");
-            return;
-        }
-
-        PlaylistSaveJSON playlist = PlaylistApi.GetPlaylist(playlistName);
-        OnlineZeeplevel onlineZeeplevel = playlist.levels.Find(l => l.UID == level.UID);
-
-        RemoveLevelFromPlaylist(onlineZeeplevel, playlistName);
+        RemoveLevelByUid(level.UID, level.name, playlistName);
     }
 
-    public void RemoveLevelFromPlaylist(OnlineZeeplevel level, string playlistName)
+    public void RemoveLevelFromPlaylist(OnlineZeeplevelDto level, string playlistName)
+    {
+        RemoveLevelByUid(level.UID, level.Name, playlistName);
+    }
+
+    private void RemoveLevelByUid(string uid, string levelName, string playlistName)
     {
         if (!PlaylistApi.Exists(playlistName))
         {
@@ -81,14 +164,14 @@ public class ZeepkistPlaylistService
         }
 
         PlaylistSaveJSON playlist = PlaylistApi.GetPlaylist(playlistName);
-        OnlineZeeplevel onlineZeeplevel = playlist.levels.Find(l => l.UID == level.UID);
+        OnlineZeeplevel onlineZeeplevel = playlist.levels.Find(l => l.UID == uid);
         if (onlineZeeplevel == null)
         {
-            _logger.LogError($"Level '{level.Name}' not found in playlist '{playlistName}'.");
+            _logger.LogError($"Level '{levelName}' (UID: {uid}) not found in playlist '{playlistName}'.");
             return;
         }
 
-        playlist.levels.Remove(level);
+        playlist.levels.Remove(onlineZeeplevel);
         IPlaylistEditor playlistEditor = playlist.CreateEditor();
         playlistEditor.Save();
     }
@@ -141,8 +224,5 @@ public class ZeepkistPlaylistService
         return PlaylistApi.GetPlaylists().Select(p => p.name).OrderBy(n => n);
     }
 
-    public void GetPlaylistByName(string name)
-    {
-        PlaylistApi.GetPlaylist(name);
-    }
+    public List<LevelMetadata> GetPlaylistByName(string name) => LoadLocalPlaylistAsMetadata(name);
 }

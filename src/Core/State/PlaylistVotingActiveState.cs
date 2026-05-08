@@ -15,7 +15,7 @@ namespace PlaylistVoting.Core.State;
 public class PlaylistVotingActiveState : RunningState
 {
     private readonly VotingResultBroadcaster _broadcaster;
-    private readonly PlaylistFileService _playlistFileService;
+    private readonly ZeepkistPlaylistService _playlistService;
     private readonly ServerMessageService _serverMessageService;
     private bool _hasRemindedToVote;
     private VotingResultResponse _lastResult;
@@ -28,7 +28,7 @@ public class PlaylistVotingActiveState : RunningState
         _toBeVoted = toBeVoted;
         _broadcaster = new VotingResultBroadcaster();
         _serverMessageService = new ServerMessageService(controller.ServermessageTitle);
-        _playlistFileService = new PlaylistFileService(controller.Logger);
+        _playlistService = new ZeepkistPlaylistService(controller.Logger);
     }
 
     protected override void OnRunningEnter()
@@ -37,9 +37,7 @@ public class PlaylistVotingActiveState : RunningState
         _ = HandleLevelLoadedAsync(); // Initial check if we are already on a level
     }
 
-    protected override void OnRunningExit()
-    {
-    }
+    protected override void OnRunningExit() { }
 
     public override void OnUpdate()
     {
@@ -112,13 +110,13 @@ public class PlaylistVotingActiveState : RunningState
         // 1. Broadcast result for previous level and finalize
         if (_previousLevel != null)
         {
-            VotingResultResponse result = await Controller.BackendService.FetchVotesAsync();
+            VotingResultResponse result = await Controller.BackendService.GetLevelResultAsync(_previousLevel.Uid);
             if (result != null)
             {
                 _broadcaster.BroadcastResult(_previousLevel, result.Votes);
             }
 
-            await Controller.BackendService.FinalizeCurrentLevelAsync();
+            await Controller.BackendService.FinalizeLevelAsync(_previousLevel.Uid);
         }
 
         // 2. Fetch remaining levels
@@ -142,6 +140,7 @@ public class PlaylistVotingActiveState : RunningState
         }
         else
         {
+            ToastNotification.Warning("Level not in voting playlist!");
             if (ZeepkistNetwork.LocalPlayer != null)
             {
                 string msg = new TMPRichTextBuilder()
@@ -171,6 +170,7 @@ public class PlaylistVotingActiveState : RunningState
 
     private async Task HandleFinishedAsync()
     {
+        ToastNotification.Info("Playlist Voting finished!");
         if (ZeepkistNetwork.LocalPlayer != null)
         {
             MessageApi.SendPrivateCustomChatMessage("Playlist Voting finished!", "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
@@ -179,7 +179,7 @@ public class PlaylistVotingActiveState : RunningState
         List<LevelMetadata> finalLevels = await Controller.BackendService.GetFinalPlaylistAsync();
         if (finalLevels != null)
         {
-            _playlistFileService.SavePlaylist($"{Session.DisplayName}-Final", finalLevels);
+            _playlistService.SavePlaylist($"{Session.DisplayName}-Final", finalLevels);
             if (ZeepkistNetwork.LocalPlayer != null)
             {
                 MessageApi.SendPrivateCustomChatMessage($"Saved final playlist: {Session.DisplayName}-Final", "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);

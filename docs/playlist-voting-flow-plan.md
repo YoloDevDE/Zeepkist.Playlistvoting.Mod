@@ -28,18 +28,20 @@ Current `VotingApiClient` uses:
 Likely/Required Endpoints:
 
 - `GET /api/playlistvoting/sessions/active`: Full metadata for active session.
-- `GET /api/playlistvoting/sessions/latest-active` or `latest-resumable`: Find latest session to resume.
-- `GET /api/playlistvoting/sessions/active/metadata`: Session state, playlist mode, online playlist info.
-- `PATCH /api/playlistvoting/sessions/active`: Enable/disable playlist mode.
-- `GET /api/playlistvoting/sessions/active/playlist/toBeVoted`: Download pending levels.
+- `GET /api/playlistvoting/sessions/latest-active`: Find latest session to resume.
+- `PATCH /api/playlistvoting/sessions/active/playlist-mode`: Enable/disable playlist mode.
+- `GET /api/playlistvoting/sessions/active/playlist/to-be-voted`: Download pending levels.
 - `GET /api/playlistvoting/sessions/active/playlist/final`: Download YES levels.
-- `POST /api/playlistvoting/sessions/active/level/finalize`: Close current level and record results.
-- `DELETE /api/playlistvoting/sessions/active/level/votes`: Reset votes for specific level (Simple Mode).
+- `POST /api/playlistvoting/sessions/active/levels/{levelUid}/finalize`: Close current level and record results.
+- `DELETE /api/playlistvoting/sessions/active/levels/{levelUid}/votes`: Reset votes for specific level (Simple Mode).
+- `GET /api/playlistvoting/sessions/active/levels/{levelUid}/result`: Get results for a specific level.
+- `POST /api/playlistvoting/sessions/active/playlist`: Upload/replace online playlist.
+- `POST /api/playlistvoting/sessions/active/level`: Set current level.
+- `GET /api/playlistvoting/votes`: Fetch current votes (legacy/polling).
 
 DTOs:
 
-- `PlaylistSessionInfo`: id, name, state, playlistModeEnabled, hasOnlinePlaylist, currentLevel, remainingLevels,
-  finalizedLevels.
+- `PlaylistSessionInfo`: id, name, state, playlistModeEnabled, hasPlaylist, currentLevel, remainingLevels.
 - `LevelMetadata`: uid, name, author, workshopID.
 
 ## 3. Backend Gaps
@@ -67,27 +69,27 @@ DTOs:
 
 ## 5. Exact Playlist Mode OnLevelLoaded Flow
 
-1. Broadcast result for `previousVotingLevel`.
-2. Call `POST /sessions/active/level/finalize` for `previousVotingLevel`.
-3. Check remaining levels in `toBeVoted`.
-4. If no levels left:
+1. If `previousVotingLevel` exists:
+    - Fetch result by level UID: `GET /sessions/active/levels/{levelUid}/result`.
+    - Broadcast that result.
+    - Call `POST /sessions/active/levels/{levelUid}/finalize`.
+2. Fetch `toBeVoted` playlist: `GET /sessions/active/playlist/to-be-voted`.
+3. If no levels left:
     - Call `GET /sessions/active/playlist/final`.
-    - Save as `{PlaylistName}-Final`.
-    - Show completion message.
+    - Save as `{SessionName}-Final`.
     - Transition to `FinishedState`.
-5. If levels remain:
-    - Check if new level UID is in `toBeVoted`.
+4. If levels remain:
+    - Check if new loaded level UID is in `toBeVoted`.
     - If yes:
         - Set as current level in backend: `POST /sessions/active/level`.
-        - Update server message with remaining count.
+        - Update `previousVotingLevel`.
     - If no:
         - Show "Level not part of active voting playlist..."
-        - Wait for next level.
 
 ## 6. Exact Simple Mode OnLevelLoaded Flow
 
-1. Broadcast result for current/previous level.
-2. Reset votes for that level ONLY: `DELETE /sessions/active/level/votes`.
+1. Broadcast result for current/previous level via `GET /sessions/active/levels/{levelUid}/result`.
+2. Reset votes for that level ONLY: `DELETE /sessions/active/levels/{levelUid}/votes`.
 3. (Optional) Broadcast that votes were reset.
 
 ## 7. Refactoring Plan
@@ -104,7 +106,7 @@ DTOs:
     - `FinishedState`
     - `PlaylistConflictState`
 - **Services**:
-    - `PlaylistFileService`: Logic for saving/loading `.zeeplist` files.
+    - `ZeepkistPlaylistService`: Logic for saving/loading `.zeeplist` files.
     - `PlaylistSyncService`: Comparison and merge logic.
     - `VotingResultBroadcaster`: Handles chat broadcasts.
     - `ServerMessageService`: Builds server message strings.

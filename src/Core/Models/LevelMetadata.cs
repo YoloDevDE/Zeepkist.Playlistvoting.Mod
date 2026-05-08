@@ -13,5 +13,5 @@ public partial class LevelMetadata
 
     [JsonProperty("author")] public string Author { get; set; } = string.Empty;
 
-    [JsonProperty("workshopId")] public ulong? WorkshopId { get; set; }
+    [JsonProperty("workshopID")] public ulong? WorkshopId { get; set; }
 }
