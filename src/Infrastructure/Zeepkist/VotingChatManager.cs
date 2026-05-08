@@ -13,6 +13,12 @@ public static class VotingChatManager
         ChatCommandApi.RegisterLocalChatCommand<VoteStop>();
         ChatCommandApi.RegisterLocalChatCommand<VoteRestart>();
         ChatCommandApi.RegisterLocalChatCommand<VoteTest>();
+        ChatCommandApi.RegisterLocalChatCommand<VoteResume>();
+        ChatCommandApi.RegisterLocalChatCommand<VotePlaylistMode>();
+        ChatCommandApi.RegisterLocalChatCommand<VoteSimpleMode>();
+        ChatCommandApi.RegisterLocalChatCommand<VoteUseLocal>();
+        ChatCommandApi.RegisterLocalChatCommand<VoteUseOnline>();
+        ChatCommandApi.RegisterLocalChatCommand<VoteMerge>();
     }
 
     public static void RegisterRemoteCommands()

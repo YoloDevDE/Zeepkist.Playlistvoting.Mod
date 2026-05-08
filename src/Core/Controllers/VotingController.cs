@@ -26,6 +26,7 @@ public class VotingController : MonoBehaviour
 
     // Level metadata — updated by states and BackendService events
     public LevelMetadata CurrentLevel { get; set; } = new LevelMetadata();
+    public PlaylistSessionInfo CurrentSession { get; set; }
 
     // ── Unity lifecycle ───────────────────────────────────────────────────────
 
@@ -92,13 +93,22 @@ public class VotingController : MonoBehaviour
 
     public void OnVoteStopRequested()
     {
-        _currentState?.OnVoteStopRequested();
+        Logger.LogInfo("Stop requested, forcing transition to VotingDisabledState.");
+        TransitionTo(new VotingDisabledState(this));
     }
 
     public void OnVoteRestartRequested()
     {
-        _currentState?.OnVoteRestartRequested();
+        Logger.LogInfo("Restart requested, forcing transition to InitState.");
+        TransitionTo(new InitState(this));
     }
+
+    public void OnPlaylistModeRequested() => _currentState?.OnPlaylistModeRequested();
+    public void OnSimpleModeRequested() => _currentState?.OnSimpleModeRequested();
+    public void OnResumeRequested() => _currentState?.OnResumeRequested();
+    public void OnUseLocalRequested() => _currentState?.OnUseLocalRequested();
+    public void OnUseOnlineRequested() => _currentState?.OnUseOnlineRequested();
+    public void OnMergeRequested() => _currentState?.OnMergeRequested();
 
     public void UpdateFromVotingResult(VotingResultResponse result)
     {

@@ -1,4 +1,5 @@
 using BepInEx.Configuration;
+using PlaylistVoting.Core.Models;
 
 namespace PlaylistVoting.Core.Config;
 
@@ -7,6 +8,7 @@ public class VotingConfig
     private readonly ConfigEntry<string> _authToken;
     private readonly ConfigEntry<string> _authUserId;
     private readonly ConfigEntry<bool> _includeAbstainVotes;
+    private readonly ConfigEntry<PlaylistVotingStartupMode> _startupMode;
     private readonly ConfigEntry<int> _voteReminderThreshold;
     private readonly ConfigEntry<string> _webApiUrl;
 
@@ -31,6 +33,10 @@ public class VotingConfig
         _includeAbstainVotes = config.Bind(
             "Voting", "Include Abstain Votes", true,
             "Whether to include abstain votes in the calculation (will be used by the backend).");
+
+        _startupMode = config.Bind(
+            "General", "Startup Mode", PlaylistVotingStartupMode.AlwaysAsk,
+            "How the mod should behave when an active session is found.");
     }
 
     public static VotingConfig Instance { get; private set; }
@@ -40,6 +46,8 @@ public class VotingConfig
     public int VoteReminderThreshold => _voteReminderThreshold.Value;
 
     public bool IncludeAbstainVotes => _includeAbstainVotes.Value;
+
+    public PlaylistVotingStartupMode StartupMode => _startupMode.Value;
 
     public string AuthToken
     {

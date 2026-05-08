@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using BepInEx.Logging;
 using PlaylistVoting.Core.Config;
@@ -66,6 +67,20 @@ public class VotingBackendService : IDisposable
     public Task<VotingResultResponse> FetchVotesAsync() => _api.FetchVoteTotalsAsync();
 
     public Task<string> ResetVotesAsync() => _api.ResetVotesAsync();
+
+    public Task<PlaylistSessionInfo> GetActiveSessionAsync() => _api.GetActiveSessionAsync();
+
+    public Task<PlaylistSessionInfo> GetLatestResumableSessionAsync() => _api.GetLatestResumableSessionAsync();
+
+    public Task<bool> SetPlaylistModeAsync(bool enabled) => _api.SetPlaylistModeAsync(enabled);
+
+    public Task<List<LevelMetadata>> GetToBeVotedPlaylistAsync() => _api.GetToBeVotedPlaylistAsync();
+
+    public Task<List<LevelMetadata>> GetFinalPlaylistAsync() => _api.GetFinalPlaylistAsync();
+
+    public Task<bool> FinalizeCurrentLevelAsync() => _api.FinalizeCurrentLevelAsync();
+
+    public Task<bool> ResetVotesForLevelAsync(string levelUid) => _api.ResetVotesForLevelAsync(levelUid);
 
     public void SendTimer(string time)
     {

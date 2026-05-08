@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -55,6 +56,95 @@ public class VotingApiClient
         }
 
         return false;
+    }
+
+    public async Task<PlaylistSessionInfo> GetActiveSessionAsync()
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active?token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        string content = await response.Content.ReadAsStringAsync();
+        return JsonConvert.DeserializeObject<PlaylistSessionInfo>(content);
+    }
+
+    public async Task<PlaylistSessionInfo> GetLatestResumableSessionAsync()
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/latest-resumable?token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        string content = await response.Content.ReadAsStringAsync();
+        return JsonConvert.DeserializeObject<PlaylistSessionInfo>(content);
+    }
+
+    public async Task<bool> SetPlaylistModeAsync(bool enabled)
+    {
+        HttpRequestMessage request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{BaseUrl}/sessions/active?token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        request.Content = new StringContent(JsonConvert.SerializeObject(new { playlistModeEnabled = enabled }), Encoding.UTF8, "application/json");
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<List<LevelMetadata>> GetToBeVotedPlaylistAsync()
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/playlist/toBeVoted?token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        string content = await response.Content.ReadAsStringAsync();
+        return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
+    }
+
+    public async Task<List<LevelMetadata>> GetFinalPlaylistAsync()
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/playlist/final?token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        string content = await response.Content.ReadAsStringAsync();
+        return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
+    }
+
+    public async Task<bool> FinalizeCurrentLevelAsync()
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/sessions/active/level/finalize?token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> ResetVotesForLevelAsync(string levelUid)
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/sessions/active/level/votes?levelUid={Uri.EscapeDataString(levelUid)}&token={Uri.EscapeDataString(GetSessionToken())}");
+        AddAuth(request);
+
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        return response.IsSuccessStatusCode;
     }
 
     public async Task<VotingResultResponse> FetchVoteTotalsAsync()

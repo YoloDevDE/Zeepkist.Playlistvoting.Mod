@@ -16,4 +16,11 @@ public interface IVotingState
     void OnVoteStopRequested();
     void OnVoteRestartRequested();
     void OnVotingResultReceived(VotingResultResponse result);
+
+    void OnPlaylistModeRequested();
+    void OnSimpleModeRequested();
+    void OnResumeRequested();
+    void OnUseLocalRequested();
+    void OnUseOnlineRequested();
+    void OnMergeRequested();
 }

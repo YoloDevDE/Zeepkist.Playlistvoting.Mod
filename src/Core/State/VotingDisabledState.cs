@@ -2,22 +2,25 @@ using PlaylistVoting.Commands.Local;
 using PlaylistVoting.Core.Controllers;
 using PlaylistVoting.Core.State.Abstractions;
 using YoloDev.Text;
-using ToastNotification = YoloDev.Zeepkist.ToastNotification;
+using YoloDev.Zeepkist;
+using ZeepkistClient;
 
 namespace PlaylistVoting.Core.State;
 
 public class VotingDisabledState : VotingStateBase
 {
-    private readonly VotingController _controller;
-
     public VotingDisabledState(VotingController controller) : base(controller)
     {
-        _controller = controller;
     }
 
     public override void OnVoteStartRequested()
     {
-        _controller.TransitionTo(new VotingActiveState(_controller));
+        Controller.TransitionTo(new InitState(Controller));
+    }
+
+    public override void OnResumeRequested()
+    {
+        Controller.TransitionTo(new InitState(Controller));
     }
 
     public override void OnVoteStopRequested()
@@ -28,11 +31,10 @@ public class VotingDisabledState : VotingStateBase
                      .AddLayer($"{new VoteStart().Prefix}{new VoteStart().Command}", b => b.Color("#f00"))
                      .AddLayer(" to start.")
                      .Build();
-        ToastNotification.Warning(msg, 5f);
-    }
 
-    public override void OnVoteRestartRequested()
-    {
-        OnVoteStartRequested();
+        if (ZeepkistNetwork.LocalPlayer != null)
+        {
+            MessageApi.SendPrivateCustomChatMessage(msg, "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
+        }
     }
 }

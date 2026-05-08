@@ -79,6 +79,42 @@ public abstract class VotingStateBase : IVotingState
         OnVotingResultReceived(result);
     }
 
+    void IVotingState.OnPlaylistModeRequested()
+    {
+        LogCall(nameof(IVotingState.OnPlaylistModeRequested));
+        OnPlaylistModeRequested();
+    }
+
+    void IVotingState.OnSimpleModeRequested()
+    {
+        LogCall(nameof(IVotingState.OnSimpleModeRequested));
+        OnSimpleModeRequested();
+    }
+
+    void IVotingState.OnResumeRequested()
+    {
+        LogCall(nameof(IVotingState.OnResumeRequested));
+        OnResumeRequested();
+    }
+
+    void IVotingState.OnUseLocalRequested()
+    {
+        LogCall(nameof(IVotingState.OnUseLocalRequested));
+        OnUseLocalRequested();
+    }
+
+    void IVotingState.OnUseOnlineRequested()
+    {
+        LogCall(nameof(IVotingState.OnUseOnlineRequested));
+        OnUseOnlineRequested();
+    }
+
+    void IVotingState.OnMergeRequested()
+    {
+        LogCall(nameof(IVotingState.OnMergeRequested));
+        OnMergeRequested();
+    }
+
     private void LogCall(string methodName)
     {
         VotingController.Instance?.Logger?.LogInfo($"[State] {GetType().Name}: {methodName}");
@@ -96,4 +132,11 @@ public abstract class VotingStateBase : IVotingState
     public virtual void OnVoteRestartRequested() { }
 
     public virtual void OnVotingResultReceived(VotingResultResponse result) { }
+
+    public virtual void OnPlaylistModeRequested() { }
+    public virtual void OnSimpleModeRequested() { }
+    public virtual void OnResumeRequested() { }
+    public virtual void OnUseLocalRequested() { }
+    public virtual void OnUseOnlineRequested() { }
+    public virtual void OnMergeRequested() { }
 }
