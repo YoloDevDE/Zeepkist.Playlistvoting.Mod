@@ -9,6 +9,6 @@ public class PlaylistSessionInfo
     [JsonProperty("state")] public string State { get; set; }
     [JsonProperty("playlistModeEnabled")] public bool PlaylistModeEnabled { get; set; }
     [JsonProperty("hasPlaylist")] public bool HasPlaylist { get; set; }
-    [JsonProperty("currentLevel")] public LevelMetadata CurrentLevel { get; set; }
-    [JsonProperty("remainingLevels")] public int RemainingLevels { get; set; }
+    [JsonProperty("currentLevelUid")] public string CurrentLevelUid { get; set; }
+    [JsonProperty("remainingLevelCount")] public int RemainingLevelCount { get; set; }
 }

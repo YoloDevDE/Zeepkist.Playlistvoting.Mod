@@ -114,7 +114,23 @@ public class VotingApiClient
         }
 
         string content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
+        try
+        {
+            PlaylistResponseDto playlistResponse = JsonConvert.DeserializeObject<PlaylistResponseDto>(content);
+            return playlistResponse?.Levels ?? new List<LevelMetadata>();
+        }
+        catch (Exception ex)
+        {
+            // If deserialization as object fails, try as list (fallback for older backend or different structure)
+            try
+            {
+                return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
+            }
+            catch
+            {
+                throw new Exception($"Failed to deserialize to-be-voted playlist. Content: {content.Substring(0, Math.Min(content.Length, 500))}", ex);
+            }
+        }
     }
 
     public async Task<List<LevelMetadata>> GetFinalPlaylistAsync()
@@ -129,7 +145,22 @@ public class VotingApiClient
         }
 
         string content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
+        try
+        {
+            PlaylistResponseDto playlistResponse = JsonConvert.DeserializeObject<PlaylistResponseDto>(content);
+            return playlistResponse?.Levels ?? new List<LevelMetadata>();
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
+            }
+            catch
+            {
+                throw new Exception($"Failed to deserialize final playlist. Content: {content.Substring(0, Math.Min(content.Length, 500))}", ex);
+            }
+        }
     }
 
     public async Task<bool> FinalizeLevelAsync(string levelUid)
@@ -211,7 +242,7 @@ public class VotingApiClient
             uid = level.Uid,
             name = level.Name,
             author = level.Author,
-            workshopID = level.WorkshopId,
+            workshopId = level.WorkshopId,
             includeAbstain
         });
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
