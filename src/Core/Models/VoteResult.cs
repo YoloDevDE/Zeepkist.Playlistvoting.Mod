@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Lombok.NET;
 using Newtonsoft.Json;
 
@@ -15,7 +16,10 @@ public partial class VoteResult
 
     [JsonProperty("total")] public int TotalVotes { get; set; }
 
-    public bool IsYesWinning => YesVotes > NoVotes;
+    [JsonProperty("platforms")] public Dictionary<string, int> Platforms { get; set; } = new Dictionary<string, int>();
 
-    public bool IsNoWinning => NoVotes > YesVotes;
+    public bool IsWin => YesVotes > NoVotes;
+
+    public bool IsLose => NoVotes > YesVotes;
+    public bool IsTie => NoVotes == YesVotes;
 }

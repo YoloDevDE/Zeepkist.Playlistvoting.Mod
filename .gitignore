@@ -3,3 +3,17 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+
+# JetBrains Rider
+.idea/
+*.sln.DotSettings.user
+*.DotSettings.user
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# MSBuild
+costura_files.txt

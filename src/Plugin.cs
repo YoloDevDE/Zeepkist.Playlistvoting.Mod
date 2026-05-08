@@ -2,6 +2,7 @@
 using HarmonyLib;
 using PlaylistVoting.Core.Config;
 using PlaylistVoting.Core.Controllers;
+using YoloDev.Zeepkist;
 
 namespace PlaylistVoting;
 
@@ -18,6 +19,7 @@ public class Plugin : BaseUnityPlugin
         Instance = this;
         _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
         _harmony.PatchAll();
+        ToastNotification.Initialize(Logger, MyPluginInfo.PLUGIN_NAME);
 
         VotingConfig.Init(Config);
 

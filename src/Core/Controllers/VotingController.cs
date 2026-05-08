@@ -55,7 +55,7 @@ public class VotingController : MonoBehaviour
 
         BackendService = new VotingBackendService(logger);
         BackendService.OnResultReceived += UpdateFromVotingResult;
-
+        ZeepkistNetwork.LobbyGameStateChanged += () => OnLobbyStateChanged((ZeepkistLobbyState)ZeepkistNetwork.CurrentLobby.GameState);
         RacingApi.LevelLoaded += OnLevelLoaded;
         ZeepkistNetwork.MasterChanged += OnMasterClientChanged;
 

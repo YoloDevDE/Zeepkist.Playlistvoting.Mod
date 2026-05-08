@@ -13,7 +13,7 @@ namespace PlaylistVoting.Infrastructure.Api;
 
 public class VotingApiClient
 {
-    private static readonly HttpClient _httpClient = new HttpClient();
+    private static readonly HttpClient HttpClient = new HttpClient();
 
     private static string BaseUrl => VotingConfig.Instance.WebApiUrl;
 
@@ -34,7 +34,7 @@ public class VotingApiClient
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{authBaseUrl}/auth/steam/ticket");
             request.Content = new StringContent(ticketHex, Encoding.UTF8, "text/plain");
 
-            HttpResponseMessage response = await _httpClient.SendAsync(request);
+            HttpResponseMessage response = await HttpClient.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 string content = await response.Content.ReadAsStringAsync();
@@ -62,22 +62,22 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/result?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await _httpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
         string content = await response.Content.ReadAsStringAsync();
         return ParseVotingResult(content);
     }
 
-    public async Task<VotingResultResponse> SubmitVoteAsync(ulong playerId, VotingType votingType)
+    public async Task<VotingResultResponse> SubmitVoteAsync(ulong playerId, VotingType votingType, string platform = "STEAM")
     {
         string username = FindUsernameBySteamId(playerId);
         string vote = GetVotingTypeAsString(votingType);
 
         string url =
-            $"{BaseUrl}/votes?platformUserId={playerId}&username={Uri.EscapeDataString(username)}&platform=STEAM&vote={vote}&token={Uri.EscapeDataString(GetSessionToken())}";
+            $"{BaseUrl}/votes?platformUserId={playerId}&username={Uri.EscapeDataString(username)}&platform={platform}&vote={vote}&token={Uri.EscapeDataString(GetSessionToken())}";
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
         AddAuth(request);
 
-        await _httpClient.SendAsync(request);
+        await HttpClient.SendAsync(request);
 
         return await FetchVoteTotalsAsync();
     }
@@ -92,12 +92,12 @@ public class VotingApiClient
             uid = level.Uid,
             name = level.Name,
             author = level.Author,
-            workshopID = level.WorkshopId.ToString(),
+            workshopID = level.WorkshopId,
             includeAbstain
         });
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        HttpResponseMessage response = await _httpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
         return response.IsSuccessStatusCode;
     }
 
@@ -106,7 +106,7 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/sessions/active/votes?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await _httpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request);
         return await response.Content.ReadAsStringAsync();
     }
 

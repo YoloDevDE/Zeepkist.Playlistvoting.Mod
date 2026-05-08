@@ -206,7 +206,12 @@ public class VotingWebSocketClient : IDisposable
 
             if (bodyStartIndex != -1)
             {
-                string body = message.Substring(bodyStartIndex + bodyOffset).TrimEnd('\0');
+                string body = message.Substring(bodyStartIndex + bodyOffset).TrimEnd('\0').Trim();
+                if (string.IsNullOrEmpty(body) || body == "\"\"")
+                {
+                    return;
+                }
+
                 try
                 {
                     VotingResultResponse result = JsonConvert.DeserializeObject<VotingResultResponse>(body);
