@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using PlaylistVoting.Commands.Local;
 using PlaylistVoting.Core.Config;
@@ -11,8 +10,6 @@ using PlaylistVoting.Infrastructure.Zeepkist;
 using YoloDev.Text;
 using YoloDev.Zeepkist;
 using ZeepkistClient;
-using ZeepkistNetworking;
-using ZeepSDK.Playlist;
 using ToastNotification = YoloDev.Zeepkist.ToastNotification;
 
 namespace PlaylistVoting.Core.State;
@@ -23,7 +20,7 @@ public class VotingActiveState : VotingStateBase
     private bool _hasRemindedToVote;
 
     private VotingResultResponse _lastResult;
-    
+
 
     private string _lastTimeSent;
 
@@ -67,8 +64,6 @@ public class VotingActiveState : VotingStateBase
 
     public override void OnVotingResultReceived(VotingResultResponse result)
     {
-        
-        
         if (result?.Votes != null)
         {
             // Only update level metadata if the backend actually provided it to avoid "Unknown"
