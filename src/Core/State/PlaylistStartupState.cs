@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -28,45 +29,62 @@ public class PlaylistStartupState : SessionState
 
     private async Task StartupAsync()
     {
-        List<LevelMetadata> onlineLevels = await Controller.BackendService.GetToBeVotedPlaylistAsync();
-        if (onlineLevels == null)
+        try
         {
-            ToastNotification.Error("Failed to download online playlist.");
-            if (ZeepkistNetwork.LocalPlayer != null)
+            Controller.Logger.LogInfo("PlaylistStartupState: Fetching online to-be-voted playlist...");
+            List<LevelMetadata> onlineLevels = await Controller.BackendService.GetToBeVotedPlaylistAsync();
+
+            if (onlineLevels == null)
             {
-                MessageApi.SendPrivateCustomChatMessage("Failed to download online playlist.", "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
+                Controller.Logger.LogWarning("PlaylistStartupState: onlineLevels is null.");
+                ToastNotification.Error("Failed to download online playlist.");
+                if (ZeepkistNetwork.LocalPlayer != null)
+                {
+                    MessageApi.SendPrivateCustomChatMessage("Failed to download online playlist.", "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
+                }
+
+                Controller.TransitionTo(new NoSessionState(Controller));
+                return;
             }
 
-            Controller.TransitionTo(new NoSessionState(Controller));
-            return;
-        }
+            Controller.Logger.LogInfo($"PlaylistStartupState: Fetched {onlineLevels.Count} online levels.");
 
-        List<LevelMetadata> localLevels = _playlistService.GetCurrentZeepkistPlaylist();
+            List<LevelMetadata> localLevels = _playlistService.GetCurrentZeepkistPlaylist();
+            Controller.Logger.LogInfo($"PlaylistStartupState: Local playlist has {localLevels.Count} levels.");
 
-        if (localLevels.Any())
-        {
-            PlaylistComparisonResult comparison = _syncService.Compare(localLevels, onlineLevels);
-
-            if (!comparison.AreEqual)
+            if (localLevels.Any())
             {
-                Controller.TransitionTo(new PlaylistConflictState(Controller, Session, localLevels, onlineLevels));
+                PlaylistComparisonResult comparison = _syncService.Compare(localLevels, onlineLevels);
+                Controller.Logger.LogInfo($"PlaylistStartupState: Comparison result - AreEqual: {comparison.AreEqual}");
+
+                if (!comparison.AreEqual)
+                {
+                    Controller.TransitionTo(new PlaylistConflictState(Controller, Session, localLevels, onlineLevels));
+                }
+                else
+                {
+                    // Sync is perfect
+                    await StartWithPlaylistAsync(onlineLevels);
+                }
             }
             else
             {
-                // Sync is perfect
+                // localLevels is empty.
+                Controller.Logger.LogInfo("PlaylistStartupState: Local levels empty, using online.");
+                ToastNotification.Warning("Local playlist not detected. Using online.");
+                if (ZeepkistNetwork.LocalPlayer != null)
+                {
+                    MessageApi.SendPrivateCustomChatMessage("Could not detect local playlist. Using online playlist.", "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
+                }
+
                 await StartWithPlaylistAsync(onlineLevels);
             }
         }
-        else
+        catch (Exception ex)
         {
-            // localLevels is empty.
-            ToastNotification.Warning("Local playlist not detected. Using online.");
-            if (ZeepkistNetwork.LocalPlayer != null)
-            {
-                MessageApi.SendPrivateCustomChatMessage("Could not detect local playlist. Using online playlist.", "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
-            }
-
-            await StartWithPlaylistAsync(onlineLevels);
+            Controller.Logger.LogError($"PlaylistStartupState: Exception in StartupAsync: {ex}");
+            ToastNotification.Error("Error starting playlist mode.");
+            Controller.TransitionTo(new NoSessionState(Controller));
         }
     }
 

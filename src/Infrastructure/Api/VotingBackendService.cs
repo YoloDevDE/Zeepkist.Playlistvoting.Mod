@@ -70,13 +70,49 @@ public class VotingBackendService : IDisposable
 
     public Task<VotingResultResponse> GetLevelResultAsync(string levelUid) => _api.GetLevelResultAsync(levelUid);
 
-    public Task<PlaylistSessionInfo> GetActiveSessionAsync() => _api.GetActiveSessionAsync();
+    public async Task<PlaylistSessionInfo> GetActiveSessionAsync()
+    {
+        try
+        {
+            return await _api.GetActiveSessionAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"VotingBackendService: Error in GetActiveSessionAsync: {ex.Message}");
+            return null;
+        }
+    }
 
-    public Task<PlaylistSessionInfo> GetLatestActiveSessionAsync() => _api.GetLatestActiveSessionAsync();
+    public async Task<PlaylistSessionInfo> GetLatestActiveSessionAsync()
+    {
+        try
+        {
+            return await _api.GetLatestActiveSessionAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"VotingBackendService: Error in GetLatestActiveSessionAsync: {ex.Message}");
+            return null;
+        }
+    }
 
     public Task<bool> SetPlaylistModeAsync(bool enabled) => _api.SetPlaylistModeAsync(enabled);
 
-    public Task<List<LevelMetadata>> GetToBeVotedPlaylistAsync() => _api.GetToBeVotedPlaylistAsync();
+    public async Task<List<LevelMetadata>> GetToBeVotedPlaylistAsync()
+    {
+        try
+        {
+            _logger.LogInfo("VotingBackendService: Requesting to-be-voted playlist from API...");
+            List<LevelMetadata> result = await _api.GetToBeVotedPlaylistAsync().ConfigureAwait(false);
+            _logger.LogInfo($"VotingBackendService: Received {result?.Count ?? -1} levels from API.");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"VotingBackendService: Error in GetToBeVotedPlaylistAsync: {ex.Message}");
+            return null;
+        }
+    }
 
     public Task<List<LevelMetadata>> GetFinalPlaylistAsync() => _api.GetFinalPlaylistAsync();
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -107,55 +108,69 @@ public class PlaylistVotingActiveState : RunningState
 
     private async Task HandleLevelLoadedAsync()
     {
-        // 1. Broadcast result for previous level and finalize
-        if (_previousLevel != null)
+        try
         {
-            VotingResultResponse result = await Controller.BackendService.GetLevelResultAsync(_previousLevel.Uid);
-            if (result != null)
+            Controller.Logger.LogInfo("PlaylistVotingActiveState: Handling level loaded...");
+            // 1. Broadcast result for previous level and finalize
+            if (_previousLevel != null)
             {
-                _broadcaster.BroadcastResult(_previousLevel, result.Votes);
+                Controller.Logger.LogInfo($"PlaylistVotingActiveState: Finalizing previous level: {_previousLevel.Name} ({_previousLevel.Uid})");
+                VotingResultResponse result = await Controller.BackendService.GetLevelResultAsync(_previousLevel.Uid);
+                if (result != null)
+                {
+                    _broadcaster.BroadcastResult(_previousLevel, result.Votes);
+                }
+
+                await Controller.BackendService.FinalizeLevelAsync(_previousLevel.Uid);
             }
 
-            await Controller.BackendService.FinalizeLevelAsync(_previousLevel.Uid);
-        }
-
-        // 2. Fetch remaining levels
-        _toBeVoted = await Controller.BackendService.GetToBeVotedPlaylistAsync();
-        if (_toBeVoted == null || !_toBeVoted.Any())
-        {
-            await HandleFinishedAsync();
-            return;
-        }
-
-        // 3. Check if current level is in toBeVoted
-        // TODO: Implement broken-level handling (e.g., skip button or automatic detection)
-        LevelMetadata currentLevel = ZeepkistMetadataProvider.GetCurrentLevelMetadata();
-        LevelMetadata matchingLevel = _toBeVoted.FirstOrDefault(l => l.Uid == currentLevel.Uid);
-
-        if (matchingLevel != null)
-        {
-            await Controller.BackendService.SetCurrentLevelAsync(matchingLevel, VotingConfig.Instance.IncludeAbstainVotes);
-            _previousLevel = matchingLevel;
-            Controller.CurrentLevel = matchingLevel;
-        }
-        else
-        {
-            ToastNotification.Warning("Level not in voting playlist!");
-            if (ZeepkistNetwork.LocalPlayer != null)
+            // 2. Fetch remaining levels
+            Controller.Logger.LogInfo("PlaylistVotingActiveState: Fetching to-be-voted playlist...");
+            _toBeVoted = await Controller.BackendService.GetToBeVotedPlaylistAsync();
+            if (_toBeVoted == null || !_toBeVoted.Any())
             {
-                string msg = new TMPRichTextBuilder()
-                             .AddLayer("This level is not part of the active voting playlist.", b => b.Color("#FF0000"))
-                             .Break()
-                             .AddLayer("Voting will continue on the next playlist level.", b => b.Size(80))
-                             .Build();
-                MessageApi.SendPrivateCustomChatMessage(msg, "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
+                Controller.Logger.LogInfo("PlaylistVotingActiveState: No more levels in playlist.");
+                await HandleFinishedAsync();
+                return;
             }
 
-            _previousLevel = null;
-            Controller.CurrentLevel = currentLevel;
-        }
+            Controller.Logger.LogInfo($"PlaylistVotingActiveState: {_toBeVoted.Count} levels remaining.");
 
-        RefreshDisplay();
+            // 3. Check if current level is in toBeVoted
+            LevelMetadata currentLevel = ZeepkistMetadataProvider.GetCurrentLevelMetadata();
+            LevelMetadata matchingLevel = _toBeVoted.FirstOrDefault(l => l.Uid == currentLevel.Uid);
+
+            if (matchingLevel != null)
+            {
+                Controller.Logger.LogInfo($"PlaylistVotingActiveState: Current level '{matchingLevel.Name}' matches playlist. Setting in backend.");
+                await Controller.BackendService.SetCurrentLevelAsync(matchingLevel, VotingConfig.Instance.IncludeAbstainVotes);
+                _previousLevel = matchingLevel;
+                Controller.CurrentLevel = matchingLevel;
+            }
+            else
+            {
+                Controller.Logger.LogWarning($"PlaylistVotingActiveState: Current level '{currentLevel.Name}' is NOT in playlist!");
+                ToastNotification.Warning("Level not in voting playlist!");
+                if (ZeepkistNetwork.LocalPlayer != null)
+                {
+                    string msg = new TMPRichTextBuilder()
+                                 .AddLayer("This level is not part of the active voting playlist.", b => b.Color("#FF0000"))
+                                 .Break()
+                                 .AddLayer("Voting will continue on the next playlist level.", b => b.Size(80))
+                                 .Build();
+                    MessageApi.SendPrivateCustomChatMessage(msg, "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
+                }
+
+                _previousLevel = null;
+                Controller.CurrentLevel = currentLevel;
+            }
+
+            RefreshDisplay();
+        }
+        catch (Exception ex)
+        {
+            Controller.Logger.LogError($"PlaylistVotingActiveState: Exception in HandleLevelLoadedAsync: {ex}");
+        }
     }
 
     private void RefreshDisplay()

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using PlaylistVoting.Core.Controllers;
@@ -72,14 +73,28 @@ public class PlaylistConflictState : SessionState
 
     private async Task FinishConflictAsync(List<LevelMetadata> levels, bool upload)
     {
-        if (upload)
+        try
         {
-            await Controller.BackendService.UpdatePlaylistAsync(levels);
+            if (upload)
+            {
+                Controller.Logger.LogInfo("PlaylistConflictState: Uploading chosen playlist to backend...");
+                await Controller.BackendService.UpdatePlaylistAsync(levels);
+            }
+
+            string playlistName = $"{Session.DisplayName}-toBeVoted";
+            Controller.Logger.LogInfo($"PlaylistConflictState: Saving playlist locally as '{playlistName}'");
+            _playlistService.SavePlaylist(playlistName, levels);
+
+            Controller.TransitionTo(new PlaylistVotingActiveState(Controller, Session, levels));
         }
-
-        string playlistName = $"{Session.DisplayName}-toBeVoted";
-        _playlistService.SavePlaylist(playlistName, levels);
-
-        Controller.TransitionTo(new PlaylistVotingActiveState(Controller, Session, levels));
+        catch (Exception ex)
+        {
+            Controller.Logger.LogError($"PlaylistConflictState: Error finishing conflict: {ex}");
+            ToastNotification.Error("Conflict resolution failed.");
+            if (ZeepkistNetwork.LocalPlayer != null)
+            {
+                MessageApi.SendPrivateCustomChatMessage("An error occurred during conflict resolution. Please try again or check logs.", "CONFLICT", ZeepkistNetwork.LocalPlayer.SteamID);
+            }
+        }
     }
 }

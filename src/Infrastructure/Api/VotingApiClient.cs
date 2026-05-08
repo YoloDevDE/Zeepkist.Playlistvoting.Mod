@@ -14,7 +14,7 @@ namespace PlaylistVoting.Infrastructure.Api;
 
 public class VotingApiClient
 {
-    private static readonly HttpClient HttpClient = new HttpClient();
+    private static readonly HttpClient HttpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
     private static string BaseUrl => VotingConfig.Instance.WebApiUrl;
 
@@ -63,13 +63,13 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
 
-        string content = await response.Content.ReadAsStringAsync();
+        string content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         return JsonConvert.DeserializeObject<PlaylistSessionInfo>(content);
     }
 
@@ -78,13 +78,13 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/latest-active?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
 
-        string content = await response.Content.ReadAsStringAsync();
+        string content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         return JsonConvert.DeserializeObject<PlaylistSessionInfo>(content);
     }
 
@@ -98,7 +98,7 @@ public class VotingApiClient
             enabled
         }), Encoding.UTF8, "application/json");
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         return response.IsSuccessStatusCode;
     }
 
@@ -107,13 +107,13 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/playlist/to-be-voted?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
 
-        string content = await response.Content.ReadAsStringAsync();
+        string content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
     }
 
@@ -122,13 +122,13 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/playlist/final?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
 
-        string content = await response.Content.ReadAsStringAsync();
+        string content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         return JsonConvert.DeserializeObject<List<LevelMetadata>>(content);
     }
 
@@ -137,7 +137,7 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/sessions/active/levels/{Uri.EscapeDataString(levelUid)}/finalize?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         return response.IsSuccessStatusCode;
     }
 
@@ -146,7 +146,7 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/sessions/active/levels/{Uri.EscapeDataString(levelUid)}/votes?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         return response.IsSuccessStatusCode;
     }
 
@@ -155,13 +155,13 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/levels/{Uri.EscapeDataString(levelUid)}/result?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             return null;
         }
 
-        string content = await response.Content.ReadAsStringAsync();
+        string content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         return ParseVotingResult(content);
     }
 
@@ -170,8 +170,8 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{BaseUrl}/sessions/active/result?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
-        string content = await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
+        string content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         return ParseVotingResult(content);
     }
 
@@ -185,7 +185,7 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
         AddAuth(request);
 
-        await HttpClient.SendAsync(request);
+        await HttpClient.SendAsync(request).ConfigureAwait(false);
 
         return await FetchVoteTotalsAsync();
     }
@@ -197,7 +197,7 @@ public class VotingApiClient
 
         request.Content = new StringContent(JsonConvert.SerializeObject(levels), Encoding.UTF8, "application/json");
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         return response.IsSuccessStatusCode;
     }
 
@@ -216,7 +216,7 @@ public class VotingApiClient
         });
         request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
         return response.IsSuccessStatusCode;
     }
 
@@ -225,8 +225,8 @@ public class VotingApiClient
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{BaseUrl}/sessions/active/votes?token={Uri.EscapeDataString(GetSessionToken())}");
         AddAuth(request);
 
-        HttpResponseMessage response = await HttpClient.SendAsync(request);
-        return await response.Content.ReadAsStringAsync();
+        HttpResponseMessage response = await HttpClient.SendAsync(request).ConfigureAwait(false);
+        return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
     }
 
     private static void AddAuth(HttpRequestMessage request)

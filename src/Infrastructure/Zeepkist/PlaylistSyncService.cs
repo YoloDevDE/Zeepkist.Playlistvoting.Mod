@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using PlaylistVoting.Core.Models;
-using ZeepkistClient;
-using ZeepkistNetworking;
 
 namespace PlaylistVoting.Infrastructure.Zeepkist;
 
@@ -14,8 +12,6 @@ public class PlaylistSyncService
         HashSet<string> onlineUids = online.Select(l => l.Uid).ToHashSet();
 
         bool areEqual = localUids.SetEquals(onlineUids);
-
-        List<OnlineZeeplevel> currentLobbyPlaylist = ZeepkistNetwork.CurrentLobby.Playlist;
         return new PlaylistComparisonResult
         {
             AreEqual = areEqual,
