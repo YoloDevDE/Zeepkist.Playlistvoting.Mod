@@ -38,7 +38,7 @@ public static class VotingDisplayManager
 
     public static void SendVotingUpdate(string content)
     {
-        MessageApi.SetServerMessage($"<size=150%>{content}</size>");
+        MessageApi.SetServerMessage($"<align=left><size=150%>{content}</size></align>");
     }
 
     private static string BuildHelpText()
@@ -63,7 +63,7 @@ public static class VotingDisplayManager
         {
             liveStatus = new TMPRichTextBuilder()
                          .AddLayer("  ")
-                         .AddLayer(dot, b => b.Bold().Size(20, TMPRichTextBuilder.UnitType.Plus).VOffset(0))
+                         .AddLayer(dot, b => b.Bold().Size(20, TMPRichTextBuilder.UnitType.Plus))
                          .AddLayer(" LIVE", b => b.Bold().Color("#fff"))
                          .Build();
         }
@@ -71,7 +71,7 @@ public static class VotingDisplayManager
         {
             liveStatus = new TMPRichTextBuilder()
                          .AddLayer("  ")
-                         .AddLayer(dot, b => b.Size(10, TMPRichTextBuilder.UnitType.Plus).VOffset(0))
+                         .AddLayer(dot, b => b.Size(10, TMPRichTextBuilder.UnitType.Plus))
                          .AddLayer(" OFFLINE")
                          .Color("#ff4444")
                          .Build();
