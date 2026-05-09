@@ -86,7 +86,6 @@ public class PlaylistVotingActiveState : RunningState
                                  .AddLayer("Type ")
                                  .AddLayer("!n", b => b.Color("#FF0000").Bold())
                                  .AddLayer(" to remove it")
-                                 .Break()
                                  .Color("#f0f0f0")
                                  .Build();
 
@@ -102,6 +101,12 @@ public class PlaylistVotingActiveState : RunningState
 
     public override void OnVotingResultReceived(VotingResultResponse result)
     {
+        if (Controller.CurrentLevel != null && result.Level != null && result.Level.Uid != Controller.CurrentLevel.Uid)
+        {
+            Controller.Logger.LogDebug($"Ignoring result for level {result.Level.Uid} (current is {Controller.CurrentLevel.Uid})");
+            return;
+        }
+
         _lastResult = result;
         RefreshDisplay();
     }
@@ -111,6 +116,9 @@ public class PlaylistVotingActiveState : RunningState
         try
         {
             Controller.Logger.LogInfo("PlaylistVotingActiveState: Handling level loaded...");
+            _lastResult = null; // Reset results for the new level
+            RefreshDisplay(); // Show initial state immediately
+
             // 1. Broadcast result for previous level and finalize
             if (_previousLevel != null)
             {
@@ -149,20 +157,10 @@ public class PlaylistVotingActiveState : RunningState
             }
             else
             {
-                Controller.Logger.LogWarning($"PlaylistVotingActiveState: Current level '{currentLevel.Name}' is NOT in playlist!");
+                Controller.Logger.LogWarning($"PlaylistVotingActiveState: Current level '{currentLevel.Name}' is NOT in playlist! Transitioning to WaitingForNextLevelState.");
                 ToastNotification.Warning("Level not in voting playlist!");
-                if (ZeepkistNetwork.LocalPlayer != null)
-                {
-                    string msg = new TMPRichTextBuilder()
-                                 .AddLayer("This level is not part of the active voting playlist.", b => b.Color("#FF0000"))
-                                 .Break()
-                                 .AddLayer("Voting will continue on the next playlist level.", b => b.Size(80))
-                                 .Build();
-                    MessageApi.SendPrivateCustomChatMessage(msg, "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
-                }
 
-                _previousLevel = null;
-                Controller.CurrentLevel = currentLevel;
+                Controller.TransitionTo(new WaitingForNextLevelState(Controller, Session));
             }
 
             RefreshDisplay();
@@ -179,8 +177,7 @@ public class PlaylistVotingActiveState : RunningState
             Session.DisplayName,
             Controller.CurrentLevel,
             _lastResult?.Votes,
-            Controller.BackendService.IsConnected,
-            _toBeVoted?.Count);
+            Controller.BackendService.IsConnected);
     }
 
     private async Task HandleFinishedAsync()

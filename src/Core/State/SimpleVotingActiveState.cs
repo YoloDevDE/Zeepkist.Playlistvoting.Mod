@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using PlaylistVoting.Core.Controllers;
 using PlaylistVoting.Core.Models;
@@ -52,30 +53,46 @@ public class SimpleVotingActiveState : RunningState
 
     public override void OnVotingResultReceived(VotingResultResponse result)
     {
+        if (Controller.CurrentLevel != null && result.Level != null && result.Level.Uid != Controller.CurrentLevel.Uid)
+        {
+            Controller.Logger.LogDebug($"Ignoring result for level {result.Level.Uid} (current is {Controller.CurrentLevel.Uid})");
+            return;
+        }
+
         _lastResult = result;
         RefreshDisplay();
     }
 
     private async Task HandleLevelLoadedAsync()
     {
-        // 1. Broadcast result for the level that just finished
-        if (_currentLevel != null)
+        try
         {
-            VotingResultResponse result = await Controller.BackendService.GetLevelResultAsync(_currentLevel.Uid);
-            if (result != null)
+            _lastResult = null; // Reset results for the new level
+            RefreshDisplay();
+
+            // 1. Broadcast result for the level that just finished
+            if (_currentLevel != null)
             {
-                _broadcaster.BroadcastResult(_currentLevel, result.Votes);
+                VotingResultResponse result = await Controller.BackendService.GetLevelResultAsync(_currentLevel.Uid);
+                if (result != null)
+                {
+                    _broadcaster.BroadcastResult(_currentLevel, result.Votes);
+                }
+
+                // 2. Reset votes for that level
+                await Controller.BackendService.ResetVotesForLevelAsync(_currentLevel.Uid);
             }
 
-            // 2. Reset votes for that level
-            await Controller.BackendService.ResetVotesForLevelAsync(_currentLevel.Uid);
+            // 3. Update to new level
+            _currentLevel = ZeepkistMetadataProvider.GetCurrentLevelMetadata();
+            Controller.CurrentLevel = _currentLevel;
+
+            RefreshDisplay();
         }
-
-        // 3. Update to new level
-        _currentLevel = ZeepkistMetadataProvider.GetCurrentLevelMetadata();
-        Controller.CurrentLevel = _currentLevel;
-
-        RefreshDisplay();
+        catch (Exception ex)
+        {
+            Controller.Logger.LogError($"SimpleVotingActiveState: Exception in HandleLevelLoadedAsync: {ex}");
+        }
     }
 
     private void RefreshDisplay()

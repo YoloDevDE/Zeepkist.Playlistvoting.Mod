@@ -12,7 +12,7 @@ public class ServerMessageService
         _title = title;
     }
 
-    public void UpdateDisplay(string sessionName, LevelMetadata level, VoteResult result, bool isConnected, int? remainingLevels = null)
+    public void UpdateDisplay(string sessionName, LevelMetadata level, VoteResult result, bool isConnected)
     {
         string message = VotingDisplayManager.BuildVoteDisplayMessage(
             _title,
@@ -20,11 +20,6 @@ public class ServerMessageService
             level,
             result,
             isConnected);
-
-        if (remainingLevels.HasValue)
-        {
-            message += $"\n{remainingLevels.Value} levels remaining";
-        }
 
         VotingDisplayManager.SendVotingUpdate(message);
     }

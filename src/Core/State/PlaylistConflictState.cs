@@ -85,6 +85,9 @@ public class PlaylistConflictState : SessionState
             Controller.Logger.LogInfo($"PlaylistConflictState: Saving playlist locally as '{playlistName}'");
             _playlistService.SavePlaylist(playlistName, levels);
 
+            Controller.Logger.LogInfo("PlaylistConflictState: Syncing playlist with Zeepkist lobby...");
+            _playlistService.UpdateLobbyPlaylist(levels);
+
             Controller.TransitionTo(new PlaylistVotingActiveState(Controller, Session, levels));
         }
         catch (Exception ex)

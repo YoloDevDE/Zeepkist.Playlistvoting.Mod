@@ -95,6 +95,10 @@ public class PlaylistStartupState : SessionState
         string playlistName = $"{Session.DisplayName}-toBeVoted";
         _playlistService.SavePlaylist(playlistName, levels);
 
+        // Sync with lobby
+        Controller.Logger.LogInfo("PlaylistStartupState: Syncing online playlist with Zeepkist lobby...");
+        _playlistService.UpdateLobbyPlaylist(levels);
+
         // Transition to active
         Controller.TransitionTo(new PlaylistVotingActiveState(Controller, Session, levels));
     }

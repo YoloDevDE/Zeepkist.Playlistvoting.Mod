@@ -13,27 +13,32 @@ public static class VotingDisplayManager
     private const string HighwayFont = "ELECTRONIC HIGHWAY SIGN SDF";
 
     public static string BuildVoteDisplayMessage(string title, string sessionName, LevelMetadata level,
-        VoteResult result, bool isConnected) => new TMPRichTextBuilder()
-                                                .AddLayer(BuildHeader(title, sessionName, isConnected))
-                                                .Break()
-                                                .AddLayer(BuildLevelInfo(level))
-                                                .Break()
-                                                .AddLayer(BuildVoteSummary(result))
-                                                .Break()
-                                                .AddLayer(BuildVoteBar(result))
-                                                .AddLayer(BuildPlatformStats(result))
-                                                .Break()
-                                                .AddLayer(BuildHelpText())
-                                                .Build();
+        VoteResult result, bool isConnected)
+    {
+        TMPRichTextBuilder builder = new TMPRichTextBuilder()
+            .AddLayer(BuildHeader(title, sessionName, isConnected));
+
+        builder.Break()
+               .AddLayer(BuildLevelInfo(level))
+               .Break();
+
+        if (result != null)
+        {
+            builder.AddLayer(BuildVoteSummary(result))
+                   .Break()
+                   .AddLayer(BuildVoteBar(result))
+                   .AddLayer(BuildPlatformStats(result))
+                   .Break();
+        }
+
+        builder.AddLayer(BuildHelpText());
+
+        return builder.Build();
+    }
 
     public static void SendVotingUpdate(string content)
     {
-        string wrappedContent = new TMPRichTextBuilder(content)
-                                .Align(TMPRichTextBuilder.AlignmentType.Left)
-                                .Size(150)
-                                .Build();
-
-        MessageApi.SetServerMessage(wrappedContent);
+        MessageApi.SetServerMessage($"<size=150%>{content}</size>");
     }
 
     private static string BuildHelpText()

@@ -58,6 +58,50 @@ public class ZeepkistPlaylistService
         }).ToList(), roundLength, shuffle);
     }
 
+    public void UpdateLobbyPlaylist(List<OnlineZeeplevelDto> levels)
+    {
+        if (ZeepkistNetwork.CurrentLobby == null)
+        {
+            _logger.LogWarning("UpdateLobbyPlaylist: No active lobby found.");
+            return;
+        }
+
+        List<OnlineZeeplevel> onlineLevels = levels.Select(level => new OnlineZeeplevel
+        {
+            UID = level.UID,
+            Name = level.Name,
+            Author = level.Author,
+            WorkshopID = level.WorkshopID,
+            Collaborators = level.Collaborators,
+            OverrideAuthorName = level.OverrideAuthorName,
+            played = level.played
+        }).ToList();
+
+        ZeepkistNetwork.CurrentLobby.Playlist = onlineLevels;
+
+        ZeepkistNetwork.NetworkClient?.SendPacket(new ChangeLobbyPlaylistPacket
+        {
+            NewTime = ZeepkistNetwork.CurrentLobby.RoundTime,
+            IsRandom = ZeepkistNetwork.CurrentLobby.PlaylistRandom,
+            playlist_all = ZeepkistNetwork.CurrentLobby.Playlist,
+            CurrentIndex = ZeepkistNetwork.CurrentLobby.CurrentPlaylistIndex,
+            NextIndex = ZeepkistNetwork.CurrentLobby.NextPlaylistIndex
+        });
+
+        _logger.LogInfo($"UpdateLobbyPlaylist: Updated lobby playlist with {onlineLevels.Count} levels.");
+    }
+
+    public void UpdateLobbyPlaylist(List<LevelMetadata> levels)
+    {
+        UpdateLobbyPlaylist(levels.Select(l => new OnlineZeeplevelDto
+        {
+            UID = l.Uid,
+            Name = l.Name,
+            Author = l.Author,
+            WorkshopID = l.WorkshopId ?? 0
+        }).ToList());
+    }
+
     public List<OnlineZeeplevelDto> LoadLocalPlaylist(string name)
     {
         if (!PlaylistApi.Exists(name))
@@ -225,4 +269,17 @@ public class ZeepkistPlaylistService
     }
 
     public List<LevelMetadata> GetPlaylistByName(string name) => LoadLocalPlaylistAsMetadata(name);
+
+    public void UploadPlaylistByNameToLobby(string name)
+    {
+        List<LevelMetadata> levels = GetPlaylistByName(name);
+        if (levels != null && levels.Any())
+        {
+            UpdateLobbyPlaylist(levels);
+        }
+        else
+        {
+            _logger.LogWarning($"UploadPlaylistByNameToLobby: Playlist '{name}' not found or empty.");
+        }
+    }
 }
