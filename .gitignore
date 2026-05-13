@@ -17,3 +17,7 @@ riderModule.iml
 
 # MSBuild
 costura_files.txt
+
+# Personal Docs
+docs/
+Servermessage.png
