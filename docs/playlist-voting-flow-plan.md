@@ -114,13 +114,13 @@ DTOs:
     - Add `/vote resume`, `/vote playlistmode`, `/vote simplemode`, `/vote use-local`, `/vote use-online`,
       `/vote merge`.
 
-## 8. Required ZeepSDK / YoloDevUtils APIs
+## 8. Required ZeepSDK / ZeepUtils APIs
 
 - **ZeepSDK.Playlist.PlaylistApi**: Managing playlists.
 - **ZeepSDK.Racing.RacingApi**: Level loaded events.
 - **ZeepSDK.ChatCommands.ChatCommandApi**: Registering commands.
-- **YoloDevUtils.Zeepkist.ToastNotification**: User alerts.
-- **YoloDevUtils.Text.TMPRichTextBuilder**: Rich text formatting.
+- **ZeepUtils.Zeepkist.ToastNotification**: User alerts.
+- **ZeepUtils.Text.RichText**: Rich text formatting.
 
 ## 9. Risks and TODOs
 
