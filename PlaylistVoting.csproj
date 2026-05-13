@@ -1,69 +1,69 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- General Project Properties -->
-  <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
-    <Description>A Zeepkist plugin for automated level voting and playlist management, providing a seamless experience for multiplayer rooms.</Description>
-    <Version>2.17.34</Version>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <LangVersion>latest</LangVersion>
-    <PackageId>yolobolo.playlistvoting</PackageId>
-    <Authors>Hi Im Yolo</Authors>
-    <Title>Playlist Voting</Title>
-    <Product>PlaylistVoting</Product>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <RestoreAdditionalProjectSources>
+    <!-- General Project Properties -->
+    <PropertyGroup>
+        <TargetFramework>net472</TargetFramework>
+        <Description>A Zeepkist plugin for automated level voting and playlist management, providing a seamless experience for multiplayer rooms.</Description>
+        <Version>2.17.101</Version>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>latest</LangVersion>
+        <PackageId>yolobolo.playlistvoting</PackageId>
+        <Authors>Hi Im Yolo</Authors>
+        <Title>Playlist Voting</Title>
+        <Product>PlaylistVoting</Product>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <RestoreAdditionalProjectSources>
             https://api.nuget.org/v3/index.json;
             https://nuget.bepinex.dev/v3/index.json;
             https://nuget.samboy.dev/v3/index.json
         </RestoreAdditionalProjectSources>
-    <!-- Required for file:line stack traces -->
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>portable</DebugType>
-    <Optimize Condition="'$(Configuration)'=='Debug'">false</Optimize>
-  </PropertyGroup>
-  <Target Name="AutoIncrementVersion" BeforeTargets="PreBuildEvent">
-    <Exec Command="powershell -Command &quot;$xml = [Xml](Get-Content '$(MSBuildProjectFullPath)'); $versionNode = $xml.SelectSingleNode('//Version'); if ($versionNode -ne $null) { $version = [version]$versionNode.InnerText; $newVersion = New-Object System.Version($version.Major, $version.Minor, ($version.Build + 1)); $versionNode.InnerText = $newVersion.ToString(); $xml.Save('$(MSBuildProjectFullPath)'); Write-Host 'Version increased to' $newVersion; }&quot;" />
-  </Target>
-  <!-- Package References -->
-  <ItemGroup>
-    <PackageReference Include="BepInEx.Analyzers" Version="1.*" />
-    <PackageReference Include="BepInEx.Core" Version="5.*" />
-    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
-    <PackageReference Include="Lombok.NET" Version="2.4.1" />
-    <PackageReference Include="Websocket.Client" Version="4.7.0" />
-    <PackageReference Include="YoloDev.Utils" Version="1.1.60" />
-    <PackageReference Include="Zeepkist.GameLibs" Version="17.32.1912" />
-    <PackageReference Include="ZeepSDK" Version="2.2.0" />
-    <!-- Costura / Fody (dependency embedding) -->
-    <PackageReference Include="Fody" Version="6.9.3" />
-    <PackageReference Include="Costura.Fody" Version="6.1.0" PrivateAssets="all" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" />
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="Microsoft.CSharp" />
-  </ItemGroup>
-  <!-- Post-Build Scripts -->
-  <Target Name="PostBuild" AfterTargets="Build">
-    <PropertyGroup>
-      <PluginDir>C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)</PluginDir>
-      <ZipPath>C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip</ZipPath>
+        <!-- Required for file:line stack traces -->
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>portable</DebugType>
+        <Optimize Condition="'$(Configuration)'=='Debug'">false</Optimize>
     </PropertyGroup>
-    <!-- Recreate plugin folder -->
-    <RemoveDir Directories="$(PluginDir)" />
-    <MakeDir Directories="$(PluginDir)" />
-    <!-- Copy DLL + PDB (symbols) so BepInEx can show file:line -->
-    <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;$(PluginDir)\$(ProjectName).dll&quot;" />
-    <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).pdb&quot; &quot;$(PluginDir)\$(ProjectName).pdb&quot;" />
-    <!-- Zip it -->
-    <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;'$(PluginDir)\*'&quot; -DestinationPath &quot;'$(ZipPath)'&quot; -Force&quot;" />
-  </Target>
-  <!-- Enable debug logging symbols (compile-time) -->
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <DefineConstants>TRACE</DefineConstants>
-  </PropertyGroup>
+    <Target Name="AutoIncrementVersion" BeforeTargets="PreBuildEvent">
+        <Exec Command="powershell -Command &quot;$xml = [Xml](Get-Content '$(MSBuildProjectFullPath)'); $versionNode = $xml.SelectSingleNode('//Version'); if ($versionNode -ne $null) { $version = [version]$versionNode.InnerText; $newVersion = New-Object System.Version($version.Major, $version.Minor, ($version.Build + 1)); $versionNode.InnerText = $newVersion.ToString(); $xml.Save('$(MSBuildProjectFullPath)'); Write-Host 'Version increased to' $newVersion; }&quot;"/>
+    </Target>
+    <!-- Package References -->
+    <ItemGroup>
+        <PackageReference Include="BepInEx.Analyzers" Version="1.*"/>
+        <PackageReference Include="BepInEx.Core" Version="5.*"/>
+        <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
+        <PackageReference Include="Lombok.NET" Version="2.4.1"/>
+        <PackageReference Include="Websocket.Client" Version="4.7.0"/>
+        <PackageReference Include="Zeepkist.GameLibs" Version="17.32.1912"/>
+        <PackageReference Include="ZeepSDK" Version="2.2.0"/>
+        <!-- Costura / Fody (dependency embedding) -->
+        <PackageReference Include="Fody" Version="6.9.3"/>
+        <PackageReference Include="Costura.Fody" Version="6.1.0" PrivateAssets="all"/>
+        <PackageReference Include="ZeepUtils" Version="1.2.0"/>
+    </ItemGroup>
+    <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3"/>
+    </ItemGroup>
+    <ItemGroup>
+        <Reference Include="Microsoft.CSharp"/>
+    </ItemGroup>
+    <!-- Post-Build Scripts -->
+    <Target Name="PostBuild" AfterTargets="Build">
+        <PropertyGroup>
+            <PluginDir>C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)</PluginDir>
+            <ZipPath>C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip</ZipPath>
+        </PropertyGroup>
+        <!-- Recreate plugin folder -->
+        <RemoveDir Directories="$(PluginDir)"/>
+        <MakeDir Directories="$(PluginDir)"/>
+        <!-- Copy DLL + PDB (symbols) so BepInEx can show file:line -->
+        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;$(PluginDir)\$(ProjectName).dll&quot;"/>
+        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).pdb&quot; &quot;$(PluginDir)\$(ProjectName).pdb&quot;"/>
+        <!-- Zip it -->
+        <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;'$(PluginDir)\*'&quot; -DestinationPath &quot;'$(ZipPath)'&quot; -Force&quot;"/>
+    </Target>
+    <!-- Enable debug logging symbols (compile-time) -->
+    <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+        <DefineConstants>DEBUG;TRACE</DefineConstants>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <DefineConstants>TRACE</DefineConstants>
+    </PropertyGroup>
 </Project>
