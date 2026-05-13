@@ -10,7 +10,7 @@ public abstract class BaseLocalVoteCommand : ILocalChatCommand
     public abstract string Command { get; }
     public abstract string Description { get; }
 
-    public void Handle(string arguments)
+    public virtual void Handle(string arguments)
     {
         TriggerEvent?.Invoke();
     }

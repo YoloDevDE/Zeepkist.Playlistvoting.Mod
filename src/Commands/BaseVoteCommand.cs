@@ -1,6 +1,6 @@
 using PlaylistVoting.Core.Controllers;
 using PlaylistVoting.Core.Models;
-using ZeepkistClient;
+using PlaylistVoting.Infrastructure.Zeepkist;
 using ZeepSDK.Chat;
 using ZeepSDK.ChatCommands;
 
@@ -16,7 +16,11 @@ public abstract class BaseVoteCommand : IMixedChatCommand
     public void Handle(string arguments)
     {
         ChatApi.SendMessage(Prefix + Command + arguments);
-        Handle(ZeepkistNetwork.LocalPlayer.SteamID, arguments);
+
+        if (ZeepkistNetworkHelper.LocalPlayer != null)
+        {
+            Handle(ZeepkistNetworkHelper.LocalPlayer.SteamID, arguments);
+        }
     }
 
     public void Handle(ulong steamId, string arguments)

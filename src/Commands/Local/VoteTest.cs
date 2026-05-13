@@ -15,6 +15,7 @@ public class VoteTest : ILocalChatCommand
     public void Handle(string arguments)
     {
         int count = 10;
+
         if (!string.IsNullOrEmpty(arguments) && int.TryParse(arguments, out int parsed))
         {
             count = parsed;
