@@ -1,26 +1,29 @@
-using BepInEx.Logging;
 using PlaylistVoting.Core.Models;
-using PlaylistVoting.Core.State;
 using PlaylistVoting.Core.State.Abstractions;
+using PlaylistVoting.Core.State.Inactive;
+using PlaylistVoting.Core.State.Setup;
 using PlaylistVoting.Infrastructure.Api;
+using PlaylistVoting.Infrastructure.UI;
 using PlaylistVoting.Infrastructure.Zeepkist;
 using UnityEngine;
 using ZeepkistClient;
 using ZeepSDK.Racing;
+using ZeepUtils.Zeepkist;
 
 namespace PlaylistVoting.Core.Controllers;
 
 public class VotingController : MonoBehaviour
 {
     private IVotingState _currentState;
+
     public ZeepkistLobbyState CurrentLobbyState { get; private set; } = ZeepkistLobbyState.NotInALobby;
 
 
     // ── Public API ────────────────────────────────────────────────────────────
 
     public static VotingController Instance { get; private set; }
-    public ManualLogSource Logger { get; private set; }
     public VotingBackendService BackendService { get; private set; }
+    public OverlayService OverlayService { get; private set; }
 
     public string ServermessageTitle { get; } = "Playlist Voting";
 
@@ -38,27 +41,37 @@ public class VotingController : MonoBehaviour
     private void Update()
     {
         _currentState?.OnUpdate();
+        OverlayService?.Refresh();
     }
 
     private void OnDestroy()
     {
         RacingApi.LevelLoaded -= OnLevelLoaded;
         ZeepkistNetwork.MasterChanged -= OnMasterClientChanged;
+        ZeepkistNetwork.LevelDataReceived -= OnLevelDataReceived;
         _currentState?.OnExit();
         BackendService?.Dispose();
     }
 
     // ── Initialization ────────────────────────────────────────────────────────
 
-    public void Initialize(ManualLogSource logger)
+    public void Initialize()
     {
-        Logger = logger;
+        BackendService = new VotingBackendService();
+        OverlayService = new OverlayService(ServermessageTitle);
 
-        BackendService = new VotingBackendService(logger);
+        if (ZeepkistNetwork.CurrentLobby != null && ZeepkistNetwork.CurrentLobby.GameState != 0)
+        {
+            ToastNotification.Info("Mod will start after this level.");
+            ZeepkistNetworkHelper.SendLocalPrivateMessage("Playlist Voting Mod will start as soon as the next level is loaded.");
+        }
+
         BackendService.OnResultReceived += UpdateFromVotingResult;
         ZeepkistNetwork.LobbyGameStateChanged += () => OnLobbyStateChanged((ZeepkistLobbyState)ZeepkistNetwork.CurrentLobby.GameState);
         RacingApi.LevelLoaded += OnLevelLoaded;
         ZeepkistNetwork.MasterChanged += OnMasterClientChanged;
+        ZeepkistNetwork.LevelDataFailed += OnLevelDataFailed;
+        ZeepkistNetwork.LevelDataReceived += OnLevelDataReceived;
 
         VotingChatManager.RegisterCommands();
         TransitionTo(new VotingDisabledState(this));
@@ -66,9 +79,17 @@ public class VotingController : MonoBehaviour
 
     // ── State transitions ─────────────────────────────────────────────────────
 
+    public void ResetSession()
+    {
+        CurrentSession = null;
+        CurrentLevel = new LevelMetadata();
+        BackendService?.Disconnect();
+        Logger.Info("Session and Level metadata reset and backend disconnected.");
+    }
+
     public void TransitionTo(IVotingState next)
     {
-        Logger.LogInfo($"State: {_currentState?.GetType().Name} → {next.GetType().Name}");
+        Logger.Info($"State: {_currentState?.GetType().Name} → {next.GetType().Name}");
         _currentState?.OnExit();
         _currentState = next;
         _currentState.OnEnter();
@@ -86,26 +107,27 @@ public class VotingController : MonoBehaviour
         _currentState?.OnLevelLoaded();
     }
 
-    public void OnVoteStartRequested()
+    public void OnVoteStartRequested(string sessionName = null)
     {
-        _currentState?.OnVoteStartRequested();
+        _currentState?.OnVoteStartRequested(sessionName);
     }
 
     public void OnVoteStopRequested()
     {
-        Logger.LogInfo("Stop requested, forcing transition to VotingDisabledState.");
-        TransitionTo(new VotingDisabledState(this));
+        Logger.Info("Stop requested, transitioning to VotingStoppingState.");
+        TransitionTo(new VotingStoppingState(this));
     }
 
     public void OnVoteRestartRequested()
     {
-        Logger.LogInfo("Restart requested, forcing transition to InitState.");
+        Logger.Info("Restart requested, forcing transition to InitState.");
         TransitionTo(new InitState(this));
     }
 
     public void OnPlaylistModeRequested() => _currentState?.OnPlaylistModeRequested();
     public void OnSimpleModeRequested() => _currentState?.OnSimpleModeRequested();
     public void OnResumeRequested() => _currentState?.OnResumeRequested();
+    public void OnConfirmRequested() => _currentState?.OnConfirmRequested();
     public void OnUseLocalRequested() => _currentState?.OnUseLocalRequested();
     public void OnUseOnlineRequested() => _currentState?.OnUseOnlineRequested();
     public void OnMergeRequested() => _currentState?.OnMergeRequested();
@@ -119,14 +141,25 @@ public class VotingController : MonoBehaviour
 
     private void OnMasterClientChanged(ZeepkistNetworkPlayer zeepkistNetworkPlayer)
     {
-        Logger.LogInfo($"Master changed: {zeepkistNetworkPlayer.Username}");
+        Logger.Info($"Master changed: {zeepkistNetworkPlayer.Username}");
         _currentState?.OnMasterStatusChanged();
     }
 
     private void OnLobbyStateChanged(ZeepkistLobbyState state)
     {
         CurrentLobbyState = state;
-        Logger.LogInfo($"Lobby state: {state}");
+        Logger.Info($"Lobby state: {state}");
         _currentState?.OnLobbyStateChanged(state);
+    }
+
+    private void OnLevelDataFailed()
+    {
+        Logger.Warn("Level data failed to load.");
+        TransitionTo(new LevelLoadErrorState(this));
+    }
+
+    private void OnLevelDataReceived(string levelName, string[] levelLines, string adventureUid)
+    {
+        _currentState?.OnLevelDataReceived(levelName, levelLines, adventureUid);
     }
 }
