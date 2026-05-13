@@ -14,10 +14,7 @@ public class PlaylistSyncService
         bool areEqual = localUids.SetEquals(onlineUids);
         return new PlaylistComparisonResult
         {
-            AreEqual = areEqual,
-
-            LocalOnly = local.Where(l => !onlineUids.Contains(l.Uid)).ToList(),
-            OnlineOnly = online.Where(l => !localUids.Contains(l.Uid)).ToList()
+            AreEqual = areEqual, LocalOnly = local.Where(l => !onlineUids.Contains(l.Uid)).ToList(), OnlineOnly = online.Where(l => !localUids.Contains(l.Uid)).ToList()
         };
     }
 

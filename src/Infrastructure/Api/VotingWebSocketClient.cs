@@ -2,7 +2,6 @@ using System;
 using System.Net;
 using System.Net.WebSockets;
 using System.Threading.Tasks;
-using BepInEx.Logging;
 using Newtonsoft.Json;
 using PlaylistVoting.Core.Models;
 using Websocket.Client;
@@ -13,23 +12,14 @@ public class VotingWebSocketClient : IDisposable
 {
     private readonly string _baseUrl;
     private readonly string _hostId;
-    private readonly ManualLogSource _logger;
     private readonly string _token;
     private WebsocketClient _client;
     private IDisposable _messageSubscription;
     private IDisposable _reconnectionSubscription;
 
-    public VotingWebSocketClient(string baseUrl, string hostId, string token, ManualLogSource logger)
+    public VotingWebSocketClient(string baseUrl, string hostId, string token)
     {
         _baseUrl = baseUrl.Replace("http://", "ws://").Replace("https://", "wss://");
-        if (_baseUrl.EndsWith("/api/playlistvoting"))
-        {
-            _baseUrl = _baseUrl.Substring(0, _baseUrl.Length - "/api/playlistvoting".Length);
-        }
-        else if (_baseUrl.EndsWith("/api/playlistvoting/"))
-        {
-            _baseUrl = _baseUrl.Substring(0, _baseUrl.Length - "/api/playlistvoting/".Length);
-        }
 
         if (!_baseUrl.EndsWith("/"))
         {
@@ -47,7 +37,6 @@ public class VotingWebSocketClient : IDisposable
 
         _hostId = hostId;
         _token = token;
-        _logger = logger;
     }
 
     public void Dispose()
@@ -73,7 +62,7 @@ public class VotingWebSocketClient : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning($"Failed to set TLS 1.2: {ex.Message}");
+            Logger.Warn($"Failed to set TLS 1.2: {ex.Message}");
         }
 
         Func<ClientWebSocket> factory = () =>
@@ -92,7 +81,7 @@ public class VotingWebSocketClient : IDisposable
 
         _reconnectionSubscription = _client.ReconnectionHappened.Subscribe(info =>
         {
-            _logger.LogInfo($"WebSocket reconnection happened, type: {info.Type}");
+            Logger.Info($"WebSocket reconnection happened, type: {info.Type}");
             Task.Run(async () =>
             {
                 try
@@ -102,7 +91,7 @@ public class VotingWebSocketClient : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"Error during STOMP setup after reconnect: {ex}");
+                    Logger.Error($"Error during STOMP setup after reconnect: {ex}");
                 }
             });
         });
@@ -112,6 +101,7 @@ public class VotingWebSocketClient : IDisposable
             if (msg.Text != null)
             {
                 string[] frames = msg.Text.Split('\0');
+
                 foreach (string frame in frames)
                 {
                     HandleStompMessage(frame);
@@ -121,19 +111,19 @@ public class VotingWebSocketClient : IDisposable
 
         _client.DisconnectionHappened.Subscribe(info =>
         {
-            _logger.LogWarning($"WebSocket disconnected, type: {info.Type}");
+            Logger.Warn($"WebSocket disconnected, type: {info.Type}");
             OnDisconnected?.Invoke();
         });
 
         try
         {
-            _logger.LogInfo($"Connecting to WebSocket: {_baseUrl}");
+            Logger.Info($"Connecting to WebSocket: {_baseUrl}");
             await _client.Start();
-            _logger.LogInfo("WebSocket client started.");
+            Logger.Info("WebSocket client started.");
         }
         catch (Exception ex)
         {
-            _logger.LogError($"WebSocket connection error: {ex}");
+            Logger.Error($"WebSocket connection error: {ex}");
             throw;
         }
     }
@@ -142,22 +132,13 @@ public class VotingWebSocketClient : IDisposable
     {
         // STOMP CONNECT frame. We send the Authorization header here.
         // We also use heart-beat:0,0 to disable them if we don't have a timer to send pings.
-        string connect = "CONNECT\r\n" +
-                         "accept-version:1.1,1.2\r\n" +
-                         "heart-beat:0,0\r\n" +
-                         "Authorization:Bearer " + _token + "\r\n" +
-                         "token:" + _token + "\r\n" +
-                         "\r\n\0";
+        string connect = "CONNECT\r\n" + "accept-version:1.1,1.2\r\n" + "heart-beat:0,0\r\n" + "Authorization:Bearer " + _token + "\r\n" + "token:" + _token + "\r\n" + "\r\n\0";
         await SendStringAsync(connect);
     }
 
     private async Task SubscribeAsync(string destination)
     {
-        string subscribe = "SUBSCRIBE\r\n" +
-                           "id:sub-0\r\n" +
-                           $"destination:{destination}\r\n" +
-                           "ack:auto\r\n" +
-                           "\r\n\0";
+        string subscribe = "SUBSCRIBE\r\n" + "id:sub-0\r\n" + $"destination:{destination}\r\n" + "ack:auto\r\n" + "\r\n\0";
         await SendStringAsync(subscribe);
     }
 
@@ -168,11 +149,7 @@ public class VotingWebSocketClient : IDisposable
             return;
         }
 
-        string frame = "SEND\r\n" +
-                       "destination:/app/timer\r\n" +
-                       "content-type:application/json\r\n" +
-                       "\r\n" +
-                       "\"" + time + "\"\0";
+        string frame = "SEND\r\n" + "destination:/app/timer\r\n" + "content-type:application/json\r\n" + "\r\n" + "\"" + time + "\"\0";
         _client.Send(frame);
     }
 
@@ -187,6 +164,7 @@ public class VotingWebSocketClient : IDisposable
     {
         // Skip heart-beats
         message = message.TrimStart('\n', '\r', ' ');
+
         if (string.IsNullOrEmpty(message))
         {
             return;
@@ -194,7 +172,7 @@ public class VotingWebSocketClient : IDisposable
 
         if (message.StartsWith("MESSAGE"))
         {
-            _logger.LogDebug($"STOMP Message received: {message}");
+            Logger.Debug($"STOMP Message received: {message}");
             int bodyStartIndex = message.IndexOf("\n\n", StringComparison.Ordinal);
             int bodyOffset = 2;
 
@@ -207,6 +185,7 @@ public class VotingWebSocketClient : IDisposable
             if (bodyStartIndex != -1)
             {
                 string body = message.Substring(bodyStartIndex + bodyOffset).TrimEnd('\0').Trim();
+
                 if (string.IsNullOrEmpty(body) || body == "\"\"")
                 {
                     return;
@@ -215,6 +194,7 @@ public class VotingWebSocketClient : IDisposable
                 try
                 {
                     VotingResultResponse result = JsonConvert.DeserializeObject<VotingResultResponse>(body);
+
                     if (result != null)
                     {
                         OnResultReceived?.Invoke(result);
@@ -222,18 +202,18 @@ public class VotingWebSocketClient : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"Error parsing WebSocket message body: {ex.Message}");
-                    _logger.LogDebug($"Problematic body: {body}");
+                    Logger.Error($"Error parsing WebSocket message body: {ex.Message}");
+                    Logger.Debug($"Problematic body: {body}");
                 }
             }
         }
         else if (message.StartsWith("ERROR"))
         {
-            _logger.LogError($"STOMP Error received: {message}");
+            Logger.Error($"STOMP Error received: {message}");
         }
         else if (message.StartsWith("CONNECTED"))
         {
-            _logger.LogInfo("STOMP Connected.");
+            Logger.Info("STOMP Connected.");
         }
     }
 }
