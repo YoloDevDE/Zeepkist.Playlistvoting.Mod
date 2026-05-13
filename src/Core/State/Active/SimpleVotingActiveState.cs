@@ -4,22 +4,18 @@ using PlaylistVoting.Core.Controllers;
 using PlaylistVoting.Core.Models;
 using PlaylistVoting.Core.State.Abstractions;
 using PlaylistVoting.Infrastructure.Zeepkist;
-using ZeepkistClient;
 
-namespace PlaylistVoting.Core.State;
+namespace PlaylistVoting.Core.State.Active;
 
 public class SimpleVotingActiveState : RunningState
 {
     private readonly VotingResultBroadcaster _broadcaster;
-    private readonly ServerMessageService _serverMessageService;
     private LevelMetadata _currentLevel;
     private VotingResultResponse _lastResult;
-    private string _lastTimeSent;
 
     public SimpleVotingActiveState(VotingController controller, PlaylistSessionInfo session) : base(controller, session)
     {
         _broadcaster = new VotingResultBroadcaster();
-        _serverMessageService = new ServerMessageService(controller.ServermessageTitle);
     }
 
     protected override void OnRunningEnter()
@@ -33,17 +29,7 @@ public class SimpleVotingActiveState : RunningState
 
     public override void OnUpdate()
     {
-        SendTimerIfChanged();
-    }
-
-    private void SendTimerIfChanged()
-    {
-        string currentTime = ZeepkistNetwork.CurrentLobby?.timeLeftString ?? "--:--";
-        if (currentTime != _lastTimeSent)
-        {
-            Controller.BackendService.SendTimer(currentTime);
-            _lastTimeSent = currentTime;
-        }
+        base.OnUpdate();
     }
 
     public override void OnLevelLoaded()
@@ -55,7 +41,7 @@ public class SimpleVotingActiveState : RunningState
     {
         if (Controller.CurrentLevel != null && result.Level != null && result.Level.Uid != Controller.CurrentLevel.Uid)
         {
-            Controller.Logger.LogDebug($"Ignoring result for level {result.Level.Uid} (current is {Controller.CurrentLevel.Uid})");
+            Logger.Debug($"Ignoring result for level {result.Level.Uid} (current is {Controller.CurrentLevel.Uid})");
             return;
         }
 
@@ -74,6 +60,7 @@ public class SimpleVotingActiveState : RunningState
             if (_currentLevel != null)
             {
                 VotingResultResponse result = await Controller.BackendService.GetLevelResultAsync(_currentLevel.Uid);
+
                 if (result != null)
                 {
                     _broadcaster.BroadcastResult(_currentLevel, result.Votes);
@@ -91,16 +78,17 @@ public class SimpleVotingActiveState : RunningState
         }
         catch (Exception ex)
         {
-            Controller.Logger.LogError($"SimpleVotingActiveState: Exception in HandleLevelLoadedAsync: {ex}");
+            Logger.Error($"SimpleVotingActiveState: Exception in HandleLevelLoadedAsync: {ex}");
         }
+    }
+
+    protected override void OnRefreshDisplay()
+    {
+        RefreshDisplay();
     }
 
     private void RefreshDisplay()
     {
-        _serverMessageService.UpdateDisplay(
-            Session.DisplayName,
-            _currentLevel,
-            _lastResult?.Votes,
-            Controller.BackendService.IsConnected);
+        Controller.OverlayService.UpdateVotingDisplay(Session.DisplayName, _currentLevel, _lastResult?.Votes, Controller.BackendService.IsConnected);
     }
 }

@@ -7,20 +7,28 @@ using PlaylistVoting.Core.Models;
 using PlaylistVoting.Core.State.Abstractions;
 using PlaylistVoting.Infrastructure.Zeepkist;
 
-namespace PlaylistVoting.Core.State;
+namespace PlaylistVoting.Core.State.Active;
 
 public class WaitingForNextLevelState : RunningState
 {
-    private readonly ServerMessageService _serverMessageService;
+    private readonly bool _isInitial;
 
-    public WaitingForNextLevelState(VotingController controller, PlaylistSessionInfo session) : base(controller, session)
+    public WaitingForNextLevelState(VotingController controller, PlaylistSessionInfo session, bool isInitial = false) : base(controller, session)
     {
-        _serverMessageService = new ServerMessageService(controller.ServermessageTitle);
+        _isInitial = isInitial;
     }
 
     protected override void OnRunningEnter()
     {
-        RefreshDisplay();
+        if (!_isInitial)
+        {
+            RefreshDisplay();
+        }
+    }
+
+    public override void OnUpdate()
+    {
+        base.OnUpdate();
     }
 
     public override void OnLevelLoaded()
@@ -32,41 +40,43 @@ public class WaitingForNextLevelState : RunningState
     {
         try
         {
-            Controller.Logger.LogInfo("WaitingForNextLevelState: Checking next level...");
+            Logger.Info("WaitingForNextLevelState: Checking next level...");
             List<LevelMetadata> toBeVoted = await Controller.BackendService.GetToBeVotedPlaylistAsync();
 
             if (toBeVoted == null || !toBeVoted.Any())
             {
-                Controller.Logger.LogInfo("WaitingForNextLevelState: No more levels in playlist. Transitioning to Active to handle finish.");
+                Logger.Info("WaitingForNextLevelState: No more levels in playlist. Transitioning to Active to handle finish.");
                 Controller.TransitionTo(new PlaylistVotingActiveState(Controller, Session, toBeVoted ?? new List<LevelMetadata>()));
                 return;
             }
 
             LevelMetadata currentLevel = ZeepkistMetadataProvider.GetCurrentLevelMetadata();
+
             if (toBeVoted.Any(l => l.Uid == currentLevel.Uid))
             {
-                Controller.Logger.LogInfo($"WaitingForNextLevelState: Next level '{currentLevel.Name}' is in playlist. Transitioning back to Active.");
+                Logger.Info($"WaitingForNextLevelState: Next level '{currentLevel.Name}' is in playlist. Transitioning back to Active.");
                 Controller.TransitionTo(new PlaylistVotingActiveState(Controller, Session, toBeVoted));
             }
             else
             {
-                Controller.Logger.LogInfo($"WaitingForNextLevelState: Level '{currentLevel.Name}' still not in playlist.");
+                Logger.Info($"WaitingForNextLevelState: Level '{currentLevel.Name}' still not in playlist.");
                 RefreshDisplay();
             }
         }
         catch (Exception ex)
         {
-            Controller.Logger.LogError($"WaitingForNextLevelState: Exception in CheckNextLevelAsync: {ex}");
+            Logger.Error($"WaitingForNextLevelState: Exception in CheckNextLevelAsync: {ex}");
         }
+    }
+
+    protected override void OnRefreshDisplay()
+    {
+        RefreshDisplay();
     }
 
     private void RefreshDisplay()
     {
         LevelMetadata currentLevel = ZeepkistMetadataProvider.GetCurrentLevelMetadata();
-        _serverMessageService.UpdateDisplay(
-            Session.DisplayName,
-            currentLevel,
-            null,
-            Controller.BackendService.IsConnected);
+        Controller.OverlayService.UpdateVotingDisplay(Session.DisplayName, currentLevel, null, Controller.BackendService.IsConnected);
     }
 }

@@ -2,11 +2,12 @@ using System.Threading.Tasks;
 using PlaylistVoting.Core.Controllers;
 using PlaylistVoting.Core.Models;
 using PlaylistVoting.Core.State.Abstractions;
-using YoloDev.Text;
-using YoloDev.Zeepkist;
-using ZeepkistClient;
+using PlaylistVoting.Core.State.Active;
+using PlaylistVoting.Infrastructure.Zeepkist;
+using ZeepUtils.Text;
+using ZeepUtils.Zeepkist;
 
-namespace PlaylistVoting.Core.State;
+namespace PlaylistVoting.Core.State.Setup;
 
 public class AwaitingModeSelectionState : SessionState
 {
@@ -14,20 +15,10 @@ public class AwaitingModeSelectionState : SessionState
 
     public override void OnEnter()
     {
-        string msg = new TMPRichTextBuilder()
-                     .AddLayer("How do you want to start Playlist Voting?", b => b.Bold().Color("#00f8ad"))
-                     .Break()
-                     .AddLayer("/vote playlistmode", b => b.Color("#ff9900"))
-                     .AddLayer(" - automated playlist voting")
-                     .Break()
-                     .AddLayer("/vote simplemode", b => b.Color("#ff9900"))
-                     .AddLayer(" - result broadcast only")
-                     .Build();
+        string msg = new RichText().Append("How do you want to start Playlist Voting?", b => b.Bold().Color("#00f8ad")).Break().Append("/vote playlistmode", b => b.Color("#ff9900")).Append(" - automated playlist voting").Break()
+                                   .Append("/vote simplemode", b => b.Color("#ff9900")).Append(" - result broadcast only").Build();
 
-        if (ZeepkistNetwork.LocalPlayer != null)
-        {
-            MessageApi.SendPrivateCustomChatMessage(msg, "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
-        }
+        ZeepkistNetworkHelper.SendLocalPrivateMessage(msg);
     }
 
     public override void OnPlaylistModeRequested()

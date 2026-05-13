@@ -5,11 +5,13 @@ using System.Threading.Tasks;
 using PlaylistVoting.Core.Controllers;
 using PlaylistVoting.Core.Models;
 using PlaylistVoting.Core.State.Abstractions;
+using PlaylistVoting.Core.State.Active;
+using PlaylistVoting.Core.State.Inactive;
 using PlaylistVoting.Infrastructure.Zeepkist;
-using YoloDev.Zeepkist;
-using ZeepkistClient;
+using ZeepUtils.Text;
+using ZeepUtils.Zeepkist;
 
-namespace PlaylistVoting.Core.State;
+namespace PlaylistVoting.Core.State.Setup;
 
 public class PlaylistStartupState : SessionState
 {
@@ -18,7 +20,7 @@ public class PlaylistStartupState : SessionState
 
     public PlaylistStartupState(VotingController controller, PlaylistSessionInfo session) : base(controller, session)
     {
-        _playlistService = new ZeepkistPlaylistService(controller.Logger);
+        _playlistService = new ZeepkistPlaylistService();
         _syncService = new PlaylistSyncService();
     }
 
@@ -31,31 +33,28 @@ public class PlaylistStartupState : SessionState
     {
         try
         {
-            Controller.Logger.LogInfo("PlaylistStartupState: Fetching online to-be-voted playlist...");
+            Logger.Info("PlaylistStartupState: Fetching online to-be-voted playlist...");
             List<LevelMetadata> onlineLevels = await Controller.BackendService.GetToBeVotedPlaylistAsync();
 
             if (onlineLevels == null)
             {
-                Controller.Logger.LogWarning("PlaylistStartupState: onlineLevels is null.");
+                Logger.Warn("PlaylistStartupState: onlineLevels is null.");
                 ToastNotification.Error("Failed to download online playlist.");
-                if (ZeepkistNetwork.LocalPlayer != null)
-                {
-                    MessageApi.SendPrivateCustomChatMessage("Failed to download online playlist.", "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
-                }
+                ZeepkistNetworkHelper.SendLocalPrivateMessage("Failed to download online playlist.");
 
-                Controller.TransitionTo(new NoSessionState(Controller));
+                Controller.TransitionTo(new VotingDisabledState(Controller));
                 return;
             }
 
-            Controller.Logger.LogInfo($"PlaylistStartupState: Fetched {onlineLevels.Count} online levels.");
+            Logger.Info($"PlaylistStartupState: Fetched {onlineLevels.Count} online levels.");
 
             List<LevelMetadata> localLevels = _playlistService.GetCurrentZeepkistPlaylist();
-            Controller.Logger.LogInfo($"PlaylistStartupState: Local playlist has {localLevels.Count} levels.");
+            Logger.Info($"PlaylistStartupState: Local playlist has {localLevels.Count} levels.");
 
             if (localLevels.Any())
             {
                 PlaylistComparisonResult comparison = _syncService.Compare(localLevels, onlineLevels);
-                Controller.Logger.LogInfo($"PlaylistStartupState: Comparison result - AreEqual: {comparison.AreEqual}");
+                Logger.Info($"PlaylistStartupState: Comparison result - AreEqual: {comparison.AreEqual}");
 
                 if (!comparison.AreEqual)
                 {
@@ -70,21 +69,18 @@ public class PlaylistStartupState : SessionState
             else
             {
                 // localLevels is empty.
-                Controller.Logger.LogInfo("PlaylistStartupState: Local levels empty, using online.");
+                Logger.Info("PlaylistStartupState: Local levels empty, using online.");
                 ToastNotification.Warning("Local playlist not detected. Using online.");
-                if (ZeepkistNetwork.LocalPlayer != null)
-                {
-                    MessageApi.SendPrivateCustomChatMessage("Could not detect local playlist. Using online playlist.", "VOTING", ZeepkistNetwork.LocalPlayer.SteamID);
-                }
+                ZeepkistNetworkHelper.SendLocalPrivateMessage("Could not detect local playlist. Using online playlist.");
 
                 await StartWithPlaylistAsync(onlineLevels);
             }
         }
         catch (Exception ex)
         {
-            Controller.Logger.LogError($"PlaylistStartupState: Exception in StartupAsync: {ex}");
+            Logger.Error($"PlaylistStartupState: Exception in StartupAsync: {ex}");
             ToastNotification.Error("Error starting playlist mode.");
-            Controller.TransitionTo(new NoSessionState(Controller));
+            Controller.TransitionTo(new VotingDisabledState(Controller));
         }
     }
 
@@ -96,8 +92,12 @@ public class PlaylistStartupState : SessionState
         _playlistService.SavePlaylist(playlistName, levels);
 
         // Sync with lobby
-        Controller.Logger.LogInfo("PlaylistStartupState: Syncing online playlist with Zeepkist lobby...");
+        Logger.Info("PlaylistStartupState: Syncing online playlist with Zeepkist lobby...");
         _playlistService.UpdateLobbyPlaylist(levels);
+
+        string successMsg = new RichText().Append("Successfully initialized playlist!", b => b.Bold().Color("#00f8ad")).Break().Append($"{levels.Count} maps are now ready for voting.", b => b.Color("#dddddd")).Build();
+
+        ZeepkistNetworkHelper.SendLocalPrivateMessage(successMsg);
 
         // Transition to active
         Controller.TransitionTo(new PlaylistVotingActiveState(Controller, Session, levels));

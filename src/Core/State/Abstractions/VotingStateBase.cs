@@ -1,5 +1,6 @@
 using PlaylistVoting.Core.Controllers;
 using PlaylistVoting.Core.Models;
+using ZeepUtils.Zeepkist;
 
 namespace PlaylistVoting.Core.State.Abstractions;
 
@@ -10,24 +11,6 @@ public abstract class VotingStateBase : IVotingState
     protected VotingStateBase(VotingController controller)
     {
         Controller = controller;
-    }
-
-    void IVotingState.OnEnter()
-    {
-        LogCall(nameof(IVotingState.OnEnter));
-        OnEnter();
-    }
-
-    void IVotingState.OnExit()
-    {
-        LogCall(nameof(IVotingState.OnExit));
-        OnExit();
-    }
-
-    void IVotingState.OnUpdate()
-    {
-        // We usually don't want to log OnUpdate as it fires every frame.
-        OnUpdate();
     }
 
     void IVotingState.OnLobbyStateChanged(ZeepkistLobbyState state)
@@ -54,10 +37,16 @@ public abstract class VotingStateBase : IVotingState
         OnLevelLoaded();
     }
 
-    void IVotingState.OnVoteStartRequested()
+    void IVotingState.OnLevelDataReceived(string levelName, string[] levelLines, string adventureUid)
     {
-        LogCall(nameof(IVotingState.OnVoteStartRequested));
-        OnVoteStartRequested();
+        LogCall(nameof(IVotingState.OnLevelDataReceived));
+        OnLevelDataReceived(levelName, levelLines, adventureUid);
+    }
+
+    void IVotingState.OnVoteStartRequested(string sessionName)
+    {
+        LogCall($"{nameof(IVotingState.OnVoteStartRequested)}({sessionName})");
+        OnVoteStartRequested(sessionName);
     }
 
     void IVotingState.OnVoteStopRequested()
@@ -115,19 +104,46 @@ public abstract class VotingStateBase : IVotingState
         OnMergeRequested();
     }
 
-    private void LogCall(string methodName)
+    public virtual void OnConfirmRequested() { }
+
+    void IState.OnEnter()
     {
-        VotingController.Instance?.Logger?.LogInfo($"[State] {GetType().Name}: {methodName}");
+        LogCall(nameof(IVotingState.OnEnter));
+        OnEnter();
+    }
+
+    void IState.OnExit()
+    {
+        LogCall(nameof(IVotingState.OnExit));
+        OnExit();
+    }
+
+    void IState.OnUpdate()
+    {
+        // We usually don't want to log OnUpdate as it fires every frame.
+        OnUpdate();
     }
 
     public virtual void OnEnter() { }
     public virtual void OnExit() { }
     public virtual void OnUpdate() { }
+
+    private void LogCall(string methodName)
+    {
+        Logger.Info($"[State] {GetType().Name}: {methodName}");
+    }
+
     public virtual void OnLobbyStateChanged(ZeepkistLobbyState state) { }
     public virtual void OnMasterStatusChanged() { }
     public virtual void OnPlayerVoted(ulong steamId, VotingType type) { }
     public virtual void OnLevelLoaded() { }
-    public virtual void OnVoteStartRequested() { }
+    public virtual void OnLevelDataReceived(string levelName, string[] levelLines, string adventureUid) { }
+
+    public virtual void OnVoteStartRequested(string sessionName = null)
+    {
+        ToastNotification.Warning("Playlist Voting is already running.");
+    }
+
     public virtual void OnVoteStopRequested() { }
     public virtual void OnVoteRestartRequested() { }
 
