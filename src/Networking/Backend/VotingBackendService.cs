@@ -144,11 +144,11 @@ public class VotingBackendService : IDisposable
         }
     }
 
-    public Task<PlaylistSessionInfo> GetLatestActiveSessionAsync()
+    public async Task<PlaylistSessionInfo> GetLatestActiveSessionAsync()
     {
         try
         {
-            return _api.GetLatestActiveSessionAsync();
+            return await _api.GetLatestActiveSessionAsync();
         }
         catch (UnauthorizedAccessException)
         {
@@ -398,8 +398,6 @@ public class VotingBackendService : IDisposable
         {
             while (_isConnecting)
                 await Task.Delay(100);
-
-            if (!_allowWebsocket || _isDisposed) { }
 
             return;
         }
