@@ -50,14 +50,9 @@ public class PlaylistVotingActiveState : RunningState
             return;
         }
 
-        string[] parts = ZeepkistNetwork.CurrentLobby.timeLeftString.Split(':');
+        double timeLeft = (ZeepkistNetwork.CurrentLobby.LevelLoadedAtTime + ZeepkistNetwork.CurrentLobby.RoundTime) - ZeepkistNetwork.Time;
 
-        if (parts.Length < 2)
-        {
-            return;
-        }
-
-        if (parts[0] == "00" && int.TryParse(parts[1], out int secs) && secs <= VotingConfig.Instance.VoteReminderThreshold)
+        if (timeLeft <= VotingConfig.Instance.VoteReminderThreshold)
         {
             string reminderMsg = new RichText().Break().Append("LAST CHANCE TO ", b => b.Underline()).Append("VOTE", b => b.Underline().Bold()).Append("!", b => b.Underline()).Break().Append("Type ").Append("!y", b => b.Color("#00FF00").Bold())
                                                .Append(" to ").Append("keep", b => b.Bold()).Append(" this level in the playlist").Break().Append("Type ").Append("!n", b => b.Color("#FF0000").Bold()).Append(" to remove it").Color("#f0f0f0").Build();
