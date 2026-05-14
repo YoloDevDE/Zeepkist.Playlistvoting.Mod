@@ -20,8 +20,7 @@ public class VoteGetToken : ILocalChatCommand
         }
         else
         {
-            string masked = token.Length > 8 ? token.Substring(0, 8) + "…" : "…";
-            ZeepkistNetworkHelper.SendLocalPrivateMessage($"Session token (masked): {masked}");
+            ZeepkistNetworkHelper.SendLocalPrivateMessage($"Your session token is: {token}");
         }
     }
 }
