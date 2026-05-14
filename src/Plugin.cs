@@ -39,7 +39,6 @@ public class Plugin : BaseUnityPlugin
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
         _harmony?.UnpatchSelf();
-        VotingConfig.Instance?.Dispose();
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
