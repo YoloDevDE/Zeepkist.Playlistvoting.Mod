@@ -1,7 +1,6 @@
 using BepInEx;
 using HarmonyLib;
-using PlaylistVoting.Core.Config;
-using PlaylistVoting.Core.Controllers;
+using PlaylistVoting.Management;
 using UnityEngine.SceneManagement;
 
 namespace PlaylistVoting;
