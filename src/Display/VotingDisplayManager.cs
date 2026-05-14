@@ -175,7 +175,6 @@ public static class VotingDisplayManager
     private static string BuildVoteBar(VoteResult result)
     {
         int total = result.YesVotes + result.NoVotes;
-        int half = BarWidth / 2;
         int totalWidth = BarWidth + 2;
         float barWidthEm = totalWidth * 0.45f;
 
