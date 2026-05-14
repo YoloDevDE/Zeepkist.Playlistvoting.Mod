@@ -17,8 +17,8 @@ public class PlaylistStartupState : SessionState
 
     public PlaylistStartupState(VotingController controller, PlaylistSessionInfo session) : base(controller, session)
     {
-        _playlistService = new ZeepkistPlaylistService();
-        _syncService = new PlaylistSyncService();
+        _playlistService = ZeepkistPlaylistService.Instance;
+        _syncService = PlaylistSyncService.Instance;
     }
 
     public override void OnEnter()

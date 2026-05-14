@@ -6,6 +6,12 @@ namespace PlaylistVoting.Management;
 
 public class PlaylistSyncService
 {
+    public static PlaylistSyncService Instance { get; private set; }
+
+    public static void Init()
+    {
+        Instance ??= new PlaylistSyncService();
+    }
     public PlaylistComparisonResult Compare(List<LevelMetadata> local, List<LevelMetadata> online)
     {
         HashSet<string> localUids = local.Select(l => l.Uid).ToHashSet();

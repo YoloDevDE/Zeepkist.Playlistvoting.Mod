@@ -25,7 +25,7 @@ public class VotingController : MonoBehaviour
 
     public static VotingController Instance { get; private set; }
     public VotingBackendService BackendService { get; private set; }
-    public OverlayService OverlayService { get; private set; }
+    public OverlayService OverlayService => OverlayService.Instance;
 
     public string ServermessageTitle { get; } = "Playlist Voting";
 
@@ -60,7 +60,9 @@ public class VotingController : MonoBehaviour
     public void Initialize()
     {
         BackendService = new VotingBackendService();
-        OverlayService = new OverlayService(ServermessageTitle);
+        OverlayService.Init(ServermessageTitle);
+        ZeepkistPlaylistService.Init();
+        PlaylistSyncService.Init();
 
         if (ZeepkistNetwork.CurrentLobby != null && ZeepkistNetwork.CurrentLobby.GameState != 0)
         {

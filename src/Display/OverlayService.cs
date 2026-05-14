@@ -8,6 +8,13 @@ namespace PlaylistVoting.Display;
 
 public class OverlayService
 {
+    public static OverlayService Instance { get; private set; }
+
+    public static void Init(string title)
+    {
+        Instance ??= new OverlayService(title);
+    }
+
     private const float SendInterval = 0.1f;
     private readonly Queue<string> _messageQueue = new Queue<string>();
     private readonly string _title;

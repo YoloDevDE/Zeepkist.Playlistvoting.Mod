@@ -17,7 +17,7 @@ public class AwaitingSessionCreationState : VotingStateBase
 
     public AwaitingSessionCreationState(VotingController controller, string requestedSessionName = null) : base(controller)
     {
-        _playlistService = new ZeepkistPlaylistService();
+        _playlistService = ZeepkistPlaylistService.Instance;
         _playlist = _playlistService.GetCurrentZeepkistPlaylist();
 
         _playlistName = string.IsNullOrEmpty(requestedSessionName) ? "Playlistvoting" : requestedSessionName;

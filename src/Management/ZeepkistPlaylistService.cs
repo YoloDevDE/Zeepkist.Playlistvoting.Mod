@@ -13,6 +13,13 @@ namespace PlaylistVoting.Management;
 
 public class ZeepkistPlaylistService
 {
+    public static ZeepkistPlaylistService Instance { get; private set; }
+
+    public static void Init()
+    {
+        Instance ??= new ZeepkistPlaylistService();
+    }
+
     private readonly string _playlistsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Zeepkist", "Playlists");
 
     private static string SanitizePlaylistName(string name)

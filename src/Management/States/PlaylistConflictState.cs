@@ -21,8 +21,8 @@ public class PlaylistConflictState : SessionState
     {
         _localLevels = localLevels;
         _onlineLevels = onlineLevels;
-        _playlistService = new ZeepkistPlaylistService();
-        _syncService = new PlaylistSyncService();
+        _playlistService = ZeepkistPlaylistService.Instance;
+        _syncService = PlaylistSyncService.Instance;
     }
 
     public override void OnEnter()

@@ -26,7 +26,7 @@ public class PlaylistVotingActiveState : RunningState
     {
         _toBeVoted = toBeVoted;
         _broadcaster = new VotingResultBroadcaster();
-        _playlistService = new ZeepkistPlaylistService();
+        _playlistService = ZeepkistPlaylistService.Instance;
     }
 
     protected override void OnRunningEnter()
