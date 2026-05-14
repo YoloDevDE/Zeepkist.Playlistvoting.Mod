@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using BepInEx.Configuration;
 using PlaylistVoting.Data.Enums;
 
@@ -14,7 +13,6 @@ public class VotingConfig
     private readonly ConfigEntry<bool> _includeAbstainVotes;
     private readonly ConfigEntry<PlaylistVotingStartupMode> _startupMode;
     private readonly ConfigEntry<int> _voteReminderThreshold;
-    private FileSystemWatcher _watcher;
 
     private VotingConfig(ConfigFile config)
     {
@@ -32,7 +30,6 @@ public class VotingConfig
         _startupMode = config.Bind("General", "Startup Mode", PlaylistVotingStartupMode.AlwaysAsk, "How the mod should behave when an active session is found.");
 
         _config.SettingChanged += (sender, args) => OnConfigChanged?.Invoke();
-        SetupWatcher();
     }
 
     public static VotingConfig Instance { get; private set; }
@@ -58,34 +55,6 @@ public class VotingConfig
     }
 
     public event Action OnConfigChanged;
-
-    private void SetupWatcher()
-    {
-        try
-        {
-            string fullPath = Path.GetFullPath(_config.ConfigFilePath);
-            string dir = Path.GetDirectoryName(fullPath);
-            string file = Path.GetFileName(fullPath);
-
-            if (dir == null)
-            {
-                return;
-            }
-
-            _watcher = new FileSystemWatcher(dir, file);
-            _watcher.NotifyFilter = NotifyFilters.LastWrite;
-            _watcher.Changed += (s, e) =>
-            {
-                Logger.Info("Config file changed on disk, reloading...");
-                Reload();
-            };
-            _watcher.EnableRaisingEvents = true;
-        }
-        catch (Exception ex)
-        {
-            Logger.Error("Failed to setup config watcher: " + ex.Message);
-        }
-    }
 
     public void Reload()
     {

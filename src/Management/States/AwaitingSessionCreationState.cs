@@ -13,13 +13,10 @@ public class AwaitingSessionCreationState : VotingStateBase
 {
     private readonly List<LevelMetadata> _playlist;
     private readonly string _playlistName;
-    private readonly ZeepkistPlaylistService _playlistService;
 
     public AwaitingSessionCreationState(VotingController controller, string requestedSessionName = null) : base(controller)
     {
-        _playlistService = new ZeepkistPlaylistService();
-        _playlist = _playlistService.GetCurrentZeepkistPlaylist();
-
+        _playlist = ZeepkistPlaylistService.Instance.GetCurrentZeepkistPlaylist();
         _playlistName = string.IsNullOrEmpty(requestedSessionName) ? "Playlistvoting" : requestedSessionName;
     }
 

@@ -14,15 +14,11 @@ public class PlaylistConflictState : SessionState
 {
     private readonly List<LevelMetadata> _localLevels;
     private readonly List<LevelMetadata> _onlineLevels;
-    private readonly ZeepkistPlaylistService _playlistService;
-    private readonly PlaylistSyncService _syncService;
 
     public PlaylistConflictState(VotingController controller, PlaylistSessionInfo session, List<LevelMetadata> localLevels, List<LevelMetadata> onlineLevels) : base(controller, session)
     {
         _localLevels = localLevels;
         _onlineLevels = onlineLevels;
-        _playlistService = new ZeepkistPlaylistService();
-        _syncService = new PlaylistSyncService();
     }
 
     public override void OnEnter()
@@ -40,21 +36,21 @@ public class PlaylistConflictState : SessionState
     public override void OnUseLocalRequested()
     {
         ToastNotification.Info("Using local playlist...");
-        List<LevelMetadata> levels = _syncService.Deduplicate(_localLevels);
+        List<LevelMetadata> levels = PlaylistSyncService.Instance.Deduplicate(_localLevels);
         _ = FinishConflictAsync(levels, true);
     }
 
     public override void OnUseOnlineRequested()
     {
         ToastNotification.Info("Using online playlist...");
-        List<LevelMetadata> levels = _syncService.Deduplicate(_onlineLevels);
+        List<LevelMetadata> levels = PlaylistSyncService.Instance.Deduplicate(_onlineLevels);
         _ = FinishConflictAsync(levels, false);
     }
 
     public override void OnMergeRequested()
     {
         ToastNotification.Info("Merging local and online playlists...");
-        List<LevelMetadata> levels = _syncService.Merge(_localLevels, _onlineLevels);
+        List<LevelMetadata> levels = PlaylistSyncService.Instance.Merge(_localLevels, _onlineLevels);
         _ = FinishConflictAsync(levels, true);
     }
 
@@ -70,10 +66,10 @@ public class PlaylistConflictState : SessionState
 
             string playlistName = $"{Session.DisplayName}-toBeVoted";
             Logger.Info($"PlaylistConflictState: Saving playlist locally as '{playlistName}'");
-            _playlistService.SavePlaylist(playlistName, levels);
+            ZeepkistPlaylistService.Instance.SavePlaylist(playlistName, levels);
 
             Logger.Info("PlaylistConflictState: Syncing playlist with Zeepkist lobby...");
-            _playlistService.UpdateLobbyPlaylist(levels);
+            ZeepkistPlaylistService.Instance.UpdateLobbyPlaylist(levels);
 
             string successMsg = new RichText().Append("Successfully initialized playlist!", b => b.Bold().Color("#00f8ad")).Break().Append($"{levels.Count} maps are now ready for voting.", b => b.Color("#dddddd")).Build();
 

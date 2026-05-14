@@ -130,7 +130,7 @@ public abstract class VotingStateBase : IVotingState
 
     private void LogCall(string methodName)
     {
-        Logger.Info($"[State] {GetType().Name}: {methodName}");
+        Logger.Debug($"[State] {GetType().Name}: {methodName}");
     }
 
     public virtual void OnLobbyStateChanged(ZeepkistLobbyState state) { }

@@ -13,11 +13,21 @@ namespace PlaylistVoting.Management;
 
 public class ZeepkistPlaylistService
 {
+    public static ZeepkistPlaylistService Instance { get; private set; }
+
+    public static void Init()
+    {
+        Instance ??= new ZeepkistPlaylistService();
+    }
+
     private readonly string _playlistsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Zeepkist", "Playlists");
 
-    public static void SavePlaylist(string name, List<OnlineZeeplevelDto> levels, int roundLength = 360, bool shuffle = false)
+    private static string SanitizePlaylistName(string name)
+        => string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.None));
+
+    public void SavePlaylist(string name, List<OnlineZeeplevelDto> levels, int roundLength = 360, bool shuffle = false)
     {
-        string sanitizedName = string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.None));
+        string sanitizedName = SanitizePlaylistName(name);
         PlaylistSaveJSON playlistSaveJson = PlaylistApi.CreatePlaylist(sanitizedName);
         IPlaylistEditor playlistEditor = playlistSaveJson.CreateEditor();
 
@@ -77,7 +87,7 @@ public class ZeepkistPlaylistService
 
     public List<OnlineZeeplevelDto> LoadLocalPlaylist(string name)
     {
-        string sanitizedName = string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.None));
+        string sanitizedName = SanitizePlaylistName(name);
 
         if (!PlaylistApi.Exists(sanitizedName))
         {
@@ -115,7 +125,7 @@ public class ZeepkistPlaylistService
 
     public void CreatePlaylist(string name, List<LevelScriptableObject> levels = null, int roundLength = 420, bool shuffle = true)
     {
-        string sanitizedName = string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.None));
+        string sanitizedName = SanitizePlaylistName(name);
         PlaylistSaveJSON playlistSaveJson = PlaylistApi.CreatePlaylist(sanitizedName);
         IPlaylistEditor playlistEditor = playlistSaveJson.CreateEditor();
 
@@ -138,7 +148,7 @@ public class ZeepkistPlaylistService
 
     public void AddLevelToPlaylist(LevelScriptableObject level, string playlistName)
     {
-        string sanitizedName = string.Join("_", playlistName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.None));
+        string sanitizedName = SanitizePlaylistName(playlistName);
 
         if (!PlaylistApi.Exists(sanitizedName))
         {
@@ -164,7 +174,7 @@ public class ZeepkistPlaylistService
 
     private void RemoveLevelByUid(string uid, string levelName, string playlistName)
     {
-        string sanitizedName = string.Join("_", playlistName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.None));
+        string sanitizedName = SanitizePlaylistName(playlistName);
 
         if (!PlaylistApi.Exists(sanitizedName))
         {
@@ -194,7 +204,7 @@ public class ZeepkistPlaylistService
             return;
         }
 
-        string sanitizedName = string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.None));
+        string sanitizedName = SanitizePlaylistName(name);
         string[] paths = Directory.GetFiles(_playlistsPath, "*.zeeplist");
 
         foreach (string path in paths)

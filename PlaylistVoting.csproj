@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <Description>A Zeepkist plugin for automated level voting and playlist management, providing a seamless experience for multiplayer rooms.</Description>
-    <Version>2.17.105</Version>
+    <Version>2.17.118</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <PackageId>yolobolo.playlistvoting</PackageId>

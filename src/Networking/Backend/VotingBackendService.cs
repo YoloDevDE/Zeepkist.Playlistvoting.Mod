@@ -118,7 +118,7 @@ public class VotingBackendService : IDisposable
         catch (Exception ex)
         {
             Logger.Warn($"ResetVotes failed, enqueuing: {ex.Message}");
-            _requestQueue.Enqueue(new PendingRequest { Type = RequestType.UpdatePlaylist, Data = null }); // Reuse or add ResetType
+            _requestQueue.Enqueue(new PendingRequest { Type = RequestType.ResetVotes });
             return null;
         }
     }
@@ -144,11 +144,11 @@ public class VotingBackendService : IDisposable
         }
     }
 
-    public Task<PlaylistSessionInfo> GetLatestActiveSessionAsync()
+    public async Task<PlaylistSessionInfo> GetLatestActiveSessionAsync()
     {
         try
         {
-            return _api.GetLatestActiveSessionAsync();
+            return await _api.GetLatestActiveSessionAsync();
         }
         catch (UnauthorizedAccessException)
         {
@@ -333,15 +333,10 @@ public class VotingBackendService : IDisposable
                 case RequestType.SetPlaylistMode:
                     return await _api.SetPlaylistModeAsync((bool)request.Data);
                 case RequestType.UpdatePlaylist:
-                    if (request.Data == null)
-                    {
-                        await _api.ResetVotesAsync();
-                    }
-                    else
-                    {
-                        await _api.UpdatePlaylistAsync((List<LevelMetadata>)request.Data);
-                    }
-
+                    await _api.UpdatePlaylistAsync((List<LevelMetadata>)request.Data);
+                    return true;
+                case RequestType.ResetVotes:
+                    await _api.ResetVotesAsync();
                     return true;
                 case RequestType.FinalizeLevel:
                     return await _api.FinalizeLevelAsync((string)request.Data);
@@ -398,8 +393,6 @@ public class VotingBackendService : IDisposable
         {
             while (_isConnecting)
                 await Task.Delay(100);
-
-            if (!_allowWebsocket || _isDisposed) { }
 
             return;
         }
