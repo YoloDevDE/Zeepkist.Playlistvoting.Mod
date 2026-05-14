@@ -15,7 +15,6 @@ namespace PlaylistVoting.Management.States;
 public class PlaylistVotingActiveState : RunningState
 {
     private readonly VotingResultBroadcaster _broadcaster;
-    private readonly ZeepkistPlaylistService _playlistService;
     private bool _hasRemindedToVote;
     private bool _isFirstCheck = true;
     private VotingResultResponse _lastResult;
@@ -26,7 +25,6 @@ public class PlaylistVotingActiveState : RunningState
     {
         _toBeVoted = toBeVoted;
         _broadcaster = new VotingResultBroadcaster();
-        _playlistService = ZeepkistPlaylistService.Instance;
     }
 
     protected override void OnRunningEnter()
@@ -162,7 +160,7 @@ public class PlaylistVotingActiveState : RunningState
 
         if (finalLevels != null)
         {
-            _playlistService.SavePlaylist($"{Session.DisplayName}-Final", finalLevels);
+            ZeepkistPlaylistService.Instance.SavePlaylist($"{Session.DisplayName}-Final", finalLevels);
             ZeepkistNetworkHelper.SendLocalPrivateMessage($"Saved final playlist: {Session.DisplayName}-Final");
         }
 

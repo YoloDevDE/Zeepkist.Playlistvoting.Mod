@@ -25,7 +25,7 @@ public class ZeepkistPlaylistService
     private static string SanitizePlaylistName(string name)
         => string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.None));
 
-    public static void SavePlaylist(string name, List<OnlineZeeplevelDto> levels, int roundLength = 360, bool shuffle = false)
+    public void SavePlaylist(string name, List<OnlineZeeplevelDto> levels, int roundLength = 360, bool shuffle = false)
     {
         string sanitizedName = SanitizePlaylistName(name);
         PlaylistSaveJSON playlistSaveJson = PlaylistApi.CreatePlaylist(sanitizedName);

@@ -12,14 +12,7 @@ namespace PlaylistVoting.Management.States;
 
 public class PlaylistStartupState : SessionState
 {
-    private readonly ZeepkistPlaylistService _playlistService;
-    private readonly PlaylistSyncService _syncService;
-
-    public PlaylistStartupState(VotingController controller, PlaylistSessionInfo session) : base(controller, session)
-    {
-        _playlistService = ZeepkistPlaylistService.Instance;
-        _syncService = PlaylistSyncService.Instance;
-    }
+    public PlaylistStartupState(VotingController controller, PlaylistSessionInfo session) : base(controller, session) { }
 
     public override void OnEnter()
     {
@@ -45,12 +38,12 @@ public class PlaylistStartupState : SessionState
 
             Logger.Info($"PlaylistStartupState: Fetched {onlineLevels.Count} online levels.");
 
-            List<LevelMetadata> localLevels = _playlistService.GetCurrentZeepkistPlaylist();
+            List<LevelMetadata> localLevels = ZeepkistPlaylistService.Instance.GetCurrentZeepkistPlaylist();
             Logger.Info($"PlaylistStartupState: Local playlist has {localLevels.Count} levels.");
 
             if (localLevels.Any())
             {
-                PlaylistComparisonResult comparison = _syncService.Compare(localLevels, onlineLevels);
+                PlaylistComparisonResult comparison = PlaylistSyncService.Instance.Compare(localLevels, onlineLevels);
                 Logger.Info($"PlaylistStartupState: Comparison result - AreEqual: {comparison.AreEqual}");
 
                 if (!comparison.AreEqual)
@@ -86,11 +79,11 @@ public class PlaylistStartupState : SessionState
         ToastNotification.Info($"Starting with {levels.Count} levels");
         // Save toBeVoted locally
         string playlistName = $"{Session.DisplayName}-toBeVoted";
-        _playlistService.SavePlaylist(playlistName, levels);
+        ZeepkistPlaylistService.Instance.SavePlaylist(playlistName, levels);
 
         // Sync with lobby
         Logger.Info("PlaylistStartupState: Syncing online playlist with Zeepkist lobby...");
-        _playlistService.UpdateLobbyPlaylist(levels);
+        ZeepkistPlaylistService.Instance.UpdateLobbyPlaylist(levels);
 
         string successMsg = new RichText().Append("Successfully initialized playlist!", b => b.Bold().Color("#00f8ad")).Break().Append($"{levels.Count} maps are now ready for voting.", b => b.Color("#dddddd")).Build();
 
