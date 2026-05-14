@@ -5,7 +5,7 @@ using PlaylistVoting.Data.Enums;
 
 namespace PlaylistVoting.Management;
 
-public class VotingConfig
+public class VotingConfig : IDisposable
 {
     private readonly ConfigEntry<string> _authToken;
     private readonly ConfigEntry<string> _authUserId;
@@ -90,6 +90,12 @@ public class VotingConfig
     public void Reload()
     {
         _config.Reload();
+    }
+
+    public void Dispose()
+    {
+        _watcher?.Dispose();
+        _watcher = null;
     }
 
     public static void Init(ConfigFile config)
