@@ -9,4 +9,5 @@ public enum RequestType
     , SetPlaylistMode
     , UpdatePlaylist
     , SubmitVote
+    , ResetVotes
 }
